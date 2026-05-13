@@ -7,8 +7,10 @@ export default defineContentScript({
       console.log('[content] message received:', message);
       if (message.action === 'validate-image-start') {
         handleValidateStart(message.imageUrl);
-      } else if (message.action === 'validate-image-result') {
-        handleValidateResult(message.imageUrl, message.isValid, message.message);
+      } else if (message.action === 'validate-image-geolens-result') {
+        handleGeoLensResult(message.imageUrl, message.status, message.message, message.error);
+      } else if (message.action === 'validate-image-exif-result') {
+        handleExifResult(message.imageUrl, message.status, message.exif, message.error);
       }
     });
   },
@@ -32,48 +34,69 @@ function injectSpinnerStyles() {
   document.head.appendChild(style);
 }
 
+type GeoLensStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
+
+type ExifSummary = {
+  camera?: string;
+  lens?: string;
+  takenAt?: string;
+  dimensions?: string;
+  exposure?: string;
+  iso?: string;
+  gps?: string;
+};
+
+type ExifStatus = 'loading' | 'available' | 'none' | 'unavailable';
+
+type ImageCheckState = {
+  geolens: {
+    status: GeoLensStatus;
+    message?: string;
+    error?: string;
+  };
+  exif: {
+    status: ExifStatus;
+    exif?: ExifSummary;
+    error?: string;
+  };
+};
+
+const imageStates = new Map<string, ImageCheckState>();
+
 function handleValidateStart(imageUrl: string) {
   console.log('[content] handleValidateStart called with URL:', imageUrl);
-  const image = findImageByUrl(imageUrl);
-  if (!image) return;
+  imageStates.set(imageUrl, {
+    geolens: {
+      status: 'loading',
+    },
+    exif: {
+      status: 'loading',
+    },
+  });
 
-  const parent = image.parentElement;
-  if (!parent) return;
-
-  parent.style.position = 'relative';
-
-  // Remove existing overlays
-  const existing = parent.querySelectorAll('.geolens-ext-overlay');
-  existing.forEach(e => e.remove());
-
-  injectSpinnerStyles();
-
-  const loading = document.createElement('div');
-  loading.className = 'geolens-ext-overlay geolens-loading';
-  loading.style.position = 'absolute';
-  loading.style.top = '5px';
-  loading.style.right = '5px';
-  loading.style.width = '24px';
-  loading.style.height = '24px';
-  loading.style.background = 'rgba(255, 255, 255, 0.8)';
-  loading.style.borderRadius = '50%';
-  loading.style.border = '3px solid #ccc';
-  loading.style.borderTopColor = '#333';
-  loading.style.animation = 'geolens-spin 1s linear infinite';
-  loading.style.zIndex = '9999';
-  loading.style.pointerEvents = 'none';
-  loading.style.boxSizing = 'border-box';
-  
-  parent.appendChild(loading);
+  renderOverlay(imageUrl);
 }
 
-function handleValidateResult(imageUrl: string, isValid: boolean, message?: string) {
-  console.log('[content] handleValidateResult called with URL:', imageUrl);
-  const image = findImageByUrl(imageUrl);
-  console.log('[content] findImageByUrl returned:', image);
-  if (!image) return;
+function handleGeoLensResult(imageUrl: string, status: GeoLensStatus, message?: string, error?: string) {
+  const state = getImageState(imageUrl);
+  state.geolens = {
+    status,
+    message,
+    error,
+  };
 
-  drawOverlay(image, isValid, message);
+  renderOverlay(imageUrl);
+}
+
+function handleExifResult(imageUrl: string, status: ExifStatus, exif?: ExifSummary, error?: string) {
+  const state = getImageState(imageUrl);
+  state.exif = {
+    status,
+    exif,
+    error,
+  };
+
+  renderOverlay(imageUrl);
 }
 
 function findImageByUrl(url: string): HTMLImageElement | null {
@@ -84,76 +107,204 @@ function findImageByUrl(url: string): HTMLImageElement | null {
   return null;
 }
 
-function drawOverlay(image: HTMLImageElement, isValid: boolean, message?: string) {
+function getImageState(imageUrl: string): ImageCheckState {
+  const existing = imageStates.get(imageUrl);
+  if (existing) return existing;
+
+  const state: ImageCheckState = {
+    geolens: { status: 'loading' },
+    exif: { status: 'loading' },
+  };
+  imageStates.set(imageUrl, state);
+  return state;
+}
+
+function renderOverlay(imageUrl: string) {
+  const image = findImageByUrl(imageUrl);
+  if (!image) return;
+
   const parent = image.parentElement;
   if (!parent) return;
 
-  // Ensure the parent can host an absolutely-positioned child.
   parent.style.position = 'relative';
 
-  // Remove existing overlays (e.g. the loading spinner)
   const existing = parent.querySelectorAll('.geolens-ext-overlay');
   existing.forEach(e => e.remove());
 
-  if (isValid && message) {
-    const banner = document.createElement('div');
-    banner.className = 'geolens-ext-overlay';
-    banner.textContent = message;
-    banner.style.position = 'absolute';
-    banner.style.bottom = '5px';
-    banner.style.left = '5px';
-    banner.style.right = '5px';
-    banner.style.background = 'rgba(0, 128, 0, 0.8)';
-    banner.style.color = 'white';
-    banner.style.padding = '8px';
-    banner.style.fontSize = '14px';
-    banner.style.borderRadius = '4px';
-    banner.style.zIndex = '9999';
-    banner.style.pointerEvents = 'none';
-    banner.style.textAlign = 'center';
-    
-    // Also add a checkmark for good measure
-    const overlay = document.createElement('div');
-    overlay.className = 'geolens-ext-overlay';
-    overlay.textContent = '✓';
-    overlay.style.position = 'absolute';
-    overlay.style.top = '5px';
-    overlay.style.right = '5px';
-    overlay.style.width = '24px';
-    overlay.style.height = '24px';
-    overlay.style.background = 'green';
-    overlay.style.color = 'white';
-    overlay.style.fontSize = '18px';
-    overlay.style.fontWeight = 'bold';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    overlay.style.borderRadius = '50%';
-    overlay.style.zIndex = '9999';
-    overlay.style.pointerEvents = 'none';
+  injectSpinnerStyles();
 
-    parent.appendChild(banner);
-    parent.appendChild(overlay);
+  const state = getImageState(imageUrl);
+  const overlay = document.createElement('div');
+  overlay.className = 'geolens-ext-overlay';
+  overlay.style.position = 'absolute';
+  overlay.style.left = '5px';
+  overlay.style.right = '5px';
+  overlay.style.bottom = '5px';
+  overlay.style.background = 'rgba(17, 24, 39, 0.88)';
+  overlay.style.color = 'white';
+  overlay.style.padding = '10px 12px';
+  overlay.style.fontSize = '12px';
+  overlay.style.borderRadius = '6px';
+  overlay.style.zIndex = '9999';
+  overlay.style.pointerEvents = 'none';
+  overlay.style.lineHeight = '1.35';
+  overlay.style.boxSizing = 'border-box';
+  overlay.style.backdropFilter = 'blur(4px)';
+  overlay.style.maxHeight = '40%';
+  overlay.style.overflow = 'auto';
+
+  const title = document.createElement('div');
+  title.textContent = 'GeoLens checks';
+  title.style.fontWeight = '700';
+  title.style.marginBottom = '8px';
+  title.style.letterSpacing = '0.02em';
+  overlay.appendChild(title);
+
+  overlay.appendChild(renderSection('GeoLens', state.geolens, renderGeoLensContent));
+  overlay.appendChild(renderSection('EXIF', state.exif, renderExifContent));
+
+  parent.appendChild(overlay);
+}
+
+function renderSection(
+  label: string,
+  statusInfo: { status: string; message?: string; error?: string; exif?: ExifSummary },
+  renderContent: (statusInfo: { status: string; message?: string; error?: string; exif?: ExifSummary }) => DocumentFragment,
+) {
+  const section = document.createElement('div');
+  section.style.background = 'rgba(255, 255, 255, 0.08)';
+  section.style.borderRadius = '6px';
+  section.style.padding = '8px 10px';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.gap = '8px';
+  header.style.marginBottom = '6px';
+
+  const heading = document.createElement('div');
+  heading.textContent = label;
+  heading.style.fontWeight = '700';
+  heading.style.fontSize = '13px';
+
+  const badge = document.createElement('span');
+  badge.textContent = describeStatus(statusInfo.status, label);
+  badge.style.display = 'inline-flex';
+  badge.style.alignItems = 'center';
+  badge.style.padding = '2px 8px';
+  badge.style.borderRadius = '999px';
+  badge.style.fontSize = '11px';
+  badge.style.fontWeight = '700';
+  badge.style.background = getStatusColor(statusInfo.status);
+  badge.style.color = 'white';
+
+  header.appendChild(heading);
+  header.appendChild(badge);
+  section.appendChild(header);
+  section.appendChild(renderContent(statusInfo));
+
+  return section;
+}
+
+function renderGeoLensContent(statusInfo: { status: string; message?: string; error?: string }): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  const text = document.createElement('div');
+
+  if (statusInfo.status === 'loading') {
+    text.textContent = 'Checking GeoLens service...';
+  } else if (statusInfo.status === 'verified') {
+    text.textContent = statusInfo.message ?? 'GeoLens verified this image.';
+  } else if (statusInfo.status === 'not-verified') {
+    text.textContent = statusInfo.message ?? 'GeoLens completed without a verification message.';
   } else {
-    const overlay = document.createElement('div');
-    overlay.className = 'geolens-ext-overlay';
-    overlay.textContent = '✗';
-    overlay.style.position = 'absolute';
-    overlay.style.top = '5px';
-    overlay.style.right = '5px';
-    overlay.style.width = '24px';
-    overlay.style.height = '24px';
-    overlay.style.background = 'red';
-    overlay.style.color = 'white';
-    overlay.style.fontSize = '18px';
-    overlay.style.fontWeight = 'bold';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    overlay.style.borderRadius = '50%';
-    overlay.style.zIndex = '9999';
-    overlay.style.pointerEvents = 'none';
-    
-    parent.appendChild(overlay);
+    text.textContent = statusInfo.error ?? 'GeoLens service is unavailable.';
   }
+
+  fragment.appendChild(text);
+  return fragment;
+}
+
+function renderExifContent(statusInfo: { status: string; message?: string; error?: string; exif?: ExifSummary }): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+
+  if (statusInfo.status === 'loading') {
+    const text = document.createElement('div');
+    text.textContent = 'Decoding EXIF metadata...';
+    fragment.appendChild(text);
+    return fragment;
+  }
+
+  if (statusInfo.status === 'unavailable') {
+    const text = document.createElement('div');
+    text.textContent = statusInfo.error ?? 'EXIF decoding is unavailable.';
+    fragment.appendChild(text);
+    return fragment;
+  }
+
+  if (statusInfo.status === 'none' || !statusInfo.exif) {
+    const text = document.createElement('div');
+    text.textContent = 'No EXIF metadata found.';
+    fragment.appendChild(text);
+    return fragment;
+  }
+
+  const rows = [
+    ['Camera', statusInfo.exif.camera],
+    ['Lens', statusInfo.exif.lens],
+    ['Taken', statusInfo.exif.takenAt],
+    ['Dimensions', statusInfo.exif.dimensions],
+    ['Exposure', statusInfo.exif.exposure],
+    ['ISO', statusInfo.exif.iso],
+    ['GPS', statusInfo.exif.gps],
+  ] as const;
+
+  for (const [label, value] of rows) {
+    if (!value) continue;
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+
+    const rowLabel = document.createElement('span');
+    rowLabel.textContent = `${label}:`;
+    rowLabel.style.minWidth = '74px';
+    rowLabel.style.fontWeight = '600';
+    rowLabel.style.opacity = '0.82';
+
+    const rowValue = document.createElement('span');
+    rowValue.textContent = value;
+    rowValue.style.wordBreak = 'break-word';
+
+    row.appendChild(rowLabel);
+    row.appendChild(rowValue);
+    fragment.appendChild(row);
+  }
+
+  if (!fragment.childNodes.length) {
+    const text = document.createElement('div');
+    text.textContent = 'No EXIF metadata found.';
+    fragment.appendChild(text);
+  }
+
+  return fragment;
+}
+
+function describeStatus(status: string, label: string): string {
+  if (status === 'loading') return 'Loading';
+  if (status === 'verified') return 'Verified';
+  if (status === 'not-verified') return 'Done';
+  if (status === 'available') return 'Available';
+  if (status === 'none') return 'No metadata';
+  if (status === 'unavailable') return `${label} unavailable`;
+  return 'Unknown';
+}
+
+function getStatusColor(status: string): string {
+  if (status === 'loading') return '#6b7280';
+  if (status === 'verified') return '#15803d';
+  if (status === 'not-verified') return '#0f766e';
+  if (status === 'available') return '#2563eb';
+  if (status === 'none') return '#92400e';
+  if (status === 'unavailable') return '#b91c1c';
+  return '#4b5563';
 }
