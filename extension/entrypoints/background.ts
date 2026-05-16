@@ -41,6 +41,7 @@ export default defineBackground(() => {
 
       void runGeoLensCheck(tab.id, imageUrl, blob);
       void runExifCheck(tab.id, imageUrl, blob);
+      void runSynthIdCheck(tab.id, imageUrl, blob);
     } catch (error) {
       console.error('[background] error starting image checks:', error);
       browser.tabs.sendMessage(tab.id, {
@@ -55,6 +56,13 @@ export default defineBackground(() => {
         status: 'unavailable',
         error: 'Unable to load image for EXIF decoding.',
       });
+      browser.tabs.sendMessage(tab.id, {
+        action: 'validate-image-synthid-result',
+        imageUrl,
+        traffic: 'red',
+        label: 'SynthID check failed',
+        detail: 'Unable to load image for SynthID check.',
+     });
     }
   });
 });
