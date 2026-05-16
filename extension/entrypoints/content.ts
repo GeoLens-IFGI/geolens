@@ -48,6 +48,8 @@ type ExifSummary = {
 
 type ExifStatus = 'loading' | 'available' | 'none' | 'unavailable';
 
+type SynthIdStatus = 'loading' | 'green' | 'orange' | 'red';
+
 type ImageCheckState = {
   geolens: {
     status: GeoLensStatus;
@@ -58,6 +60,11 @@ type ImageCheckState = {
     status: ExifStatus;
     exif?: ExifSummary;
     error?: string;
+  };
+  synthid: {
+  status: SynthIdStatus;
+  label?: string;
+  detail?: string;
   };
 };
 
@@ -70,6 +77,9 @@ function handleValidateStart(imageUrl: string) {
       status: 'loading',
     },
     exif: {
+      status: 'loading',
+    },
+    synthid: { 
       status: 'loading',
     },
   });
@@ -99,6 +109,17 @@ function handleExifResult(imageUrl: string, status: ExifStatus, exif?: ExifSumma
   renderOverlay(imageUrl);
 }
 
+function handleSynthIdResult(imageUrl: string, traffic: SynthIdStatus, label?: string, detail?: string) {
+  const state = getImageState(imageUrl);
+  state.synthid = { 
+    status: traffic, 
+    label, 
+    detail,
+  };
+  
+  renderOverlay(imageUrl);
+}
+
 function findImageByUrl(url: string): HTMLImageElement | null {
   const allImages = document.querySelectorAll('img');
   for (const img of allImages) {
@@ -114,6 +135,7 @@ function getImageState(imageUrl: string): ImageCheckState {
   const state: ImageCheckState = {
     geolens: { status: 'loading' },
     exif: { status: 'loading' },
+    synthid: { status: 'loading' },
   };
   imageStates.set(imageUrl, state);
   return state;
@@ -162,6 +184,7 @@ function renderOverlay(imageUrl: string) {
 
   overlay.appendChild(renderSection('GeoLens', state.geolens, renderGeoLensContent));
   overlay.appendChild(renderSection('EXIF', state.exif, renderExifContent));
+  overlay.appendChild(renderSection('SynthID', state.synthid, renderSynthIdContent));
 
   parent.appendChild(overlay);
 }
@@ -286,6 +309,20 @@ function renderExifContent(statusInfo: { status: string; message?: string; error
     fragment.appendChild(text);
   }
 
+  return fragment;
+}
+
+function renderSynthIdContent(statusInfo: { status: string; label?: string; detail?: string }): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  const text = document.createElement('div');
+  if (statusInfo.status === 'loading') {
+    text.textContent = 'Scanning for SynthID watermark...';
+  } else if (statusInfo.status === 'green' || statusInfo.status === 'orange') {
+    text.textContent = statusInfo.detail ?? statusInfo.label ?? 'SynthID watermark detected.';
+  } else {
+    text.textContent = statusInfo.detail ?? statusInfo.label ?? 'No SynthID watermark found.';
+  }
+  fragment.appendChild(text);
   return fragment;
 }
 
