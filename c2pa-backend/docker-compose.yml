@@ -1,0 +1,28 @@
+services:
+  c2pa-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: geolens/c2pa-backend:0.1.0
+    container_name: geolens-c2pa-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      C2PA_TRUST_PROFILE: ${C2PA_TRUST_PROFILE:-c2pa-prod+itl}
+      C2PA_TRUST_DIR: /app/trust
+      C2PA_HOST: 0.0.0.0
+      C2PA_PORT: "8001"
+      C2PA_OCSP_LIVE: "false"
+      C2PA_CORS_ORIGINS: "*"
+      C2PA_LOG_LEVEL: INFO
+    volumes:
+      # Mount your trust-list bundle directory in. The image ships only
+      # an empty trust/ folder; production anchors are environment-specific.
+      - ./trust:/app/trust:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

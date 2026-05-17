@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Generated fixtures and dev secrets — never commit.
+tests/fixtures/verified.jpg
+tests/fixtures/tampered.jpg
+tests/fixtures/no_manifest.jpg
+trust/dev_anchor.pem
+trust/dev_signing.cert.pem
+trust/dev_signing.key.pem
+
+# Production trust list bundles are environment-specific; bring your own.
+trust/c2pa_trust_list.pem
+trust/c2pa_tsa_trust_list.pem
+trust/c2pa_itl.pem
+
+.env
+.env.local
