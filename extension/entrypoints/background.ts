@@ -1,4 +1,9 @@
 import * as exifr from 'exifr';
+import { registry } from '../core/registry';
+
+// Loading this module triggers the adapter's
+// self-registration with the regristry (side effect).
+import '../validators/geocam/adapter';
 
 export default defineBackground(() => {
   browser.contextMenus.create({
@@ -8,7 +13,7 @@ export default defineBackground(() => {
   });
 
   browser.contextMenus.onClicked.addListener(async (info, tab) => {
-    console.log('[background] menu click received:', info, tab);
+    console.log('[background] menu click recieved:', info, tab);
 
     if (info.menuItemId !== 'validate-image') return;
     if (!tab?.id) return;
@@ -19,9 +24,9 @@ export default defineBackground(() => {
         action: 'validate-image-geolens-result',
         imageUrl,
         status: 'unavailable',
-        error: 'No image URL was available for GeoLens validation.',
-      });
-      browser.tabs.sendMessage(tab.id, {
+        error: 'No image URL was available for GeoCam validation.',
+    });
+    browser.tabs.sendMessage(tab.id, {
         action: 'validate-image-exif-result',
         imageUrl,
         status: 'unavailable',
@@ -35,29 +40,40 @@ export default defineBackground(() => {
       imageUrl,
     });
 
-    try {
-      const imgRes = await fetch(imageUrl);
-      const blob = await imgRes.blob();
-
-      void runGeoLensCheck(tab.id, imageUrl, blob);
-      void runExifCheck(tab.id, imageUrl, blob);
-    } catch (error) {
-      console.error('[background] error starting image checks:', error);
-      browser.tabs.sendMessage(tab.id, {
-        action: 'validate-image-geolens-result',
-        imageUrl,
-        status: 'unavailable',
-        error: 'Unable to load image for GeoLens validation.',
-      });
-      browser.tabs.sendMessage(tab.id, {
-        action: 'validate-image-exif-result',
-        imageUrl,
-        status: 'unavailable',
-        error: 'Unable to load image for EXIF decoding.',
-      });
-    }
+    // Run both checks in parallel.
+    void runGeoCamCheck(tab.id, imageUrl);
+    void runExifCheck(tab.id, imageUrl);
   });
 });
+
+// GeoCam dispatched via registry.
+async function runGeoCamCheck(tabId: number, imageURL: string) {
+  const result = await registry.validateWith('geocam', imageURL);
+
+  if (!result) {
+    // Just in case no validator named 'geocam' was registered.
+    browser.tabs.sendMessage(tabId, {
+      action: 'validate-image-geolens-result',
+      imageURL,
+      status: 'unavailable',
+      error: 'GeoCam validator is not registered.',
+    });
+    return;
+  }
+
+  // Translate registry's ValidationResult into wire format
+  // which the content script understands.
+  browser.tabs.sendMessage(tabId, {
+    action: 'validate-image-geolens-result',
+    imageURL,
+    status: result.status,
+    message: result.message,
+    error: result.error,
+  });
+}
+
+// EXIF: remains unchanged here. Consider refactoring into
+// an 'insepctor' adaptor in the future.
 
 type ExifSummary = {
   camera?: string;
@@ -69,68 +85,19 @@ type ExifSummary = {
   gps?: string;
 };
 
-type GeoLensResult = {
-  status: 'verified' | 'not-verified' | 'unavailable';
-  message?: string;
-  error?: string;
-};
-
 type ExifResult = {
   status: 'available' | 'none' | 'unavailable';
   exif?: ExifSummary;
   error?: string;
 };
 
-async function runGeoLensCheck(tabId: number, imageUrl: string, blob: Blob) {
+async function runExifCheck(tabId: number, imageUrl: string) {
   try {
-    const formData = new FormData();
-    formData.append('file', blob, 'image.png');
+    // EXIF still does its own fetch here, since the adapter now owns
+    // GeoCam's fetch and there's no shared pre-fetched blob anymore.
+    const imgRes = await fetch(imageUrl);
+    const blob = await imgRes.blob();
 
-    const apiRes = await fetch('http://localhost:8000/verify-image/', {
-      method: 'POST',
-      body: formData,
-    });
-
-    let result: GeoLensResult;
-
-    if (!apiRes.ok) {
-      result = {
-        status: 'unavailable',
-        error: `GeoLens service returned HTTP ${apiRes.status}.`,
-      };
-    } else {
-      const data = await apiRes.json();
-      if (data.status === 'verified') {
-        result = {
-          status: 'verified',
-          message: data.decoded_message,
-        };
-      } else {
-        result = {
-          status: 'not-verified',
-          message: data.decoded_message ?? 'GeoLens validation completed, but no decoded message was returned.',
-        };
-      }
-    }
-
-    browser.tabs.sendMessage(tabId, {
-      action: 'validate-image-geolens-result',
-      imageUrl,
-      ...result,
-    });
-  } catch (error) {
-    console.error('[background] GeoLens validation failed:', error);
-    browser.tabs.sendMessage(tabId, {
-      action: 'validate-image-geolens-result',
-      imageUrl,
-      status: 'unavailable',
-      error: 'GeoLens validation service is unavailable.',
-    });
-  }
-}
-
-async function runExifCheck(tabId: number, imageUrl: string, blob: Blob) {
-  try {
     const exif = await parseExif(blob);
     const result: ExifResult = exif
       ? { status: 'available', exif }
