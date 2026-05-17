@@ -12,8 +12,8 @@ export default defineContentScript({
       } else if (message.action === 'validate-image-exif-result') {
         handleExifResult(message.imageUrl, message.status, message.exif, message.error);
       } else if (message.action === 'validate-image-synthid-result') {
-  handleSynthIdResult(message.imageUrl, message.status, message.message, message.error);
-}
+        handleSynthIdResult(message.imageUrl, message.status, message.message, message.error);
+      }
     });
   },
 });
