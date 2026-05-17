@@ -21,7 +21,7 @@ export default defineBackground(() => {
     const imageUrl = info.srcUrl ?? '';
     if (!imageUrl) {
       browser.tabs.sendMessage(tab.id, {
-        action: 'validate-image-geolens-result',
+        action: 'validate-image-geocam-result',
         imageUrl,
         status: 'unavailable',
         error: 'No image URL was available for GeoCam validation.',
@@ -53,7 +53,7 @@ async function runGeoCamCheck(tabId: number, imageURL: string) {
   if (!result) {
     // Just in case no validator named 'geocam' was registered.
     browser.tabs.sendMessage(tabId, {
-      action: 'validate-image-geolens-result',
+      action: 'validate-image-geocam-result',
       imageURL,
       status: 'unavailable',
       error: 'GeoCam validator is not registered.',
@@ -64,7 +64,7 @@ async function runGeoCamCheck(tabId: number, imageURL: string) {
   // Translate registry's ValidationResult into wire format
   // which the content script understands.
   browser.tabs.sendMessage(tabId, {
-    action: 'validate-image-geolens-result',
+    action: 'validate-image-geocam-result',
     imageURL,
     status: result.status,
     message: result.message,
