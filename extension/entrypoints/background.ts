@@ -200,3 +200,35 @@ function formatGps(latitude?: number, longitude?: number, altitude?: number): st
 
   return `${Math.abs(latitude).toFixed(5)}° ${latDirection}, ${Math.abs(longitude).toFixed(5)}° ${lonDirection}${altitudePart}`;
 }
+
+async function runSynthIdCheck(tabId: number, imageUrl: string, blob: Blob) {
+  try {
+    const formData = new FormData();
+    formData.append('file', blob, 'image.png');
+
+    const apiRes = await fetch('http://localhost:8000/verify-image/', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!apiRes.ok) throw new Error(`Server error: ${apiRes.status}`);
+
+    const data = await apiRes.json();
+
+    browser.tabs.sendMessage(tabId, {
+      action: 'validate-image-synthid-result',
+      imageUrl,
+      traffic: data.checks.synthid.traffic,
+      label: data.checks.synthid.label,
+      detail: data.checks.synthid.detail,
+    });
+  } catch (err) {
+    browser.tabs.sendMessage(tabId, {
+      action: 'validate-image-synthid-result',
+      imageUrl,
+      traffic: 'red',
+      label: 'SynthID check failed',
+      detail: String(err),
+    });
+  }
+}
