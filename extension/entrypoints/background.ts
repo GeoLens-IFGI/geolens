@@ -27,6 +27,12 @@ export default defineBackground(() => {
         status: 'unavailable',
         error: 'No image URL was available for EXIF decoding.',
       });
+      browser.tabs.sendMessage(tab.id, {
+       action: 'validate-image-synthid-result',
+       imageUrl,
+       status: 'unavailable',
+       error: 'No image URL was available for SynthID check.',
+      });
       return;
     }
 
@@ -59,9 +65,8 @@ export default defineBackground(() => {
       browser.tabs.sendMessage(tab.id, {
         action: 'validate-image-synthid-result',
         imageUrl,
-        traffic: 'red',
-        label: 'SynthID check failed',
-        detail: 'Unable to load image for SynthID check.',
+        status: 'unavailable',
+        error: 'Unable to load image for SynthID check.',
      });
     }
   });
@@ -218,17 +223,16 @@ async function runSynthIdCheck(tabId: number, imageUrl: string, blob: Blob) {
     browser.tabs.sendMessage(tabId, {
       action: 'validate-image-synthid-result',
       imageUrl,
-      traffic: data.checks.synthid.traffic,
-      label: data.checks.synthid.label,
-      detail: data.checks.synthid.detail,
+      status: data.checks.synthid.status,
+      message: data.checks.synthid.message,
+      error: data.checks.synthid.error,
     });
   } catch (err) {
     browser.tabs.sendMessage(tabId, {
       action: 'validate-image-synthid-result',
       imageUrl,
-      traffic: 'red',
-      label: 'SynthID check failed',
-      detail: String(err),
-    });
-  }
-}
+      status: 'unavailable',
+      message: 'SynthID check failed',
+      error: String(err),
+});
+
