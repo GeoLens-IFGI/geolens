@@ -4,7 +4,7 @@ export type ValidationStatus = 'verified' | 'not-verified' | 'unavailable';
 // the standardized result every verfication method returns.
 // optional fields may be ommitted.
 export type ValidationResult = {
-    status: ValidationResult;
+    status: ValidationStatus;
     validatorName: string;
     message?: string;
     confidence?: number;
