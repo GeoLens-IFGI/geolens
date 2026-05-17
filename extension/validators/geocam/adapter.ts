@@ -5,10 +5,11 @@
 // The adapter DOES NOT send messages to the content script.
 
 import type { Validator, ValidationResult } from '../../core/validator-interface';
+import { registry } from '../../core/registry';
 
 const GEOCAM_ENDPOINT = 'http://localhost:8000/verify-image/';
 
-class GeoCamAdaptor implements Validator {
+class GeoCamAdapter implements Validator {
     readonly name = 'geocam';
     readonly displayName = 'GeoCam Verification';
 
@@ -66,3 +67,9 @@ class GeoCamAdaptor implements Validator {
         };
     }
 }
+
+// Self-registration with the shared registry.
+// Self-registration is triggered at import time, in
+// this project the background script is importing this module.
+
+registry.register(new GeoCamAdapter());
