@@ -235,4 +235,5 @@ async function runSynthIdCheck(tabId: number, imageUrl: string, blob: Blob) {
       message: 'SynthID check failed',
       error: String(err),
 });
-
+}
+}
