@@ -12,7 +12,7 @@ export default defineContentScript({
       } else if (message.action === 'validate-image-exif-result') {
         handleExifResult(message.imageUrl, message.status, message.exif, message.error);
       } else if (message.action === 'validate-image-synthid-result') {
-  handleSynthIdResult(message.imageUrl, message.traffic, message.label, message.detail);
+  handleSynthIdResult(message.imageUrl, message.status, message.message, message.error);
 }
     });
   },
@@ -50,7 +50,7 @@ type ExifSummary = {
 
 type ExifStatus = 'loading' | 'available' | 'none' | 'unavailable';
 
-type SynthIdStatus = 'loading' | 'green' | 'orange' | 'red';
+type SynthIdStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
 
 type ImageCheckState = {
   geolens: {
@@ -65,8 +65,8 @@ type ImageCheckState = {
   };
   synthid: {
   status: SynthIdStatus;
-  label?: string;
-  detail?: string;
+  message?: string;
+  error?: string;
   };
 };
 
@@ -111,12 +111,12 @@ function handleExifResult(imageUrl: string, status: ExifStatus, exif?: ExifSumma
   renderOverlay(imageUrl);
 }
 
-function handleSynthIdResult(imageUrl: string, traffic: SynthIdStatus, label?: string, detail?: string) {
+function handleSynthIdResult(imageUrl: string, status: SynthIdStatus, message?: string, error?: string) {
   const state = getImageState(imageUrl);
   state.synthid = { 
-    status: traffic, 
-    label, 
-    detail,
+    status, 
+    message, 
+    error,
   };
   
   renderOverlay(imageUrl);
@@ -314,15 +314,17 @@ function renderExifContent(statusInfo: { status: string; message?: string; error
   return fragment;
 }
 
-function renderSynthIdContent(statusInfo: { status: string; label?: string; detail?: string }): DocumentFragment {
+function renderSynthIdContent(statusInfo: { status: string; message?: string; error?: string }): DocumentFragment {
   const fragment = document.createDocumentFragment();
   const text = document.createElement('div');
   if (statusInfo.status === 'loading') {
     text.textContent = 'Scanning for SynthID watermark...';
-  } else if (statusInfo.status === 'green' || statusInfo.status === 'orange') {
-    text.textContent = statusInfo.detail ?? statusInfo.label ?? 'SynthID watermark detected.';
+  } else if (statusInfo.status === 'verified') {
+    text.textContent = statusInfo.message ?? 'SynthID watermark detected.';
+  } else if (statusInfo.status === 'not-verified') {
+    text.textContent = statusInfo.message ?? 'No SynthID watermark found.';
   } else {
-    text.textContent = statusInfo.detail ?? statusInfo.label ?? 'No SynthID watermark found.';
+    text.textContent = statusInfo.error ?? 'SynthID check unavailable.';
   }
   fragment.appendChild(text);
   return fragment;
