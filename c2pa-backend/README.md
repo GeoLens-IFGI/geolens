@@ -127,6 +127,96 @@ docker compose up --build
 This brings up the C2PA backend on `localhost:8001` alongside the existing
 GeoCam service convention on `localhost:8000` (which you run separately).
 
+## Smoke-testing a running backend
+
+Once `uvicorn` (or `docker compose`) is up, use these two checks — in this
+order — to confirm the service is healthy and processes uploads correctly.
+You can run them from any other terminal; they do not need the venv.
+
+### 1. Liveness check
+
+```bash
+curl http://localhost:8001/health
+```
+
+Returns JSON describing the active trust profile (e.g. `"trust_profile":
+"dev"`). If you see `Connection refused`, the service isn't running on
+`localhost:8001` — go back and check the `uvicorn` terminal.
+
+> Note: opening `http://localhost:8001/c2pa/verify` in a browser tab returns
+> `{"detail": "Method Not Allowed"}`. That's expected — the endpoint is
+> POST-only — and actually confirms the server is up. Use `/health` or
+> `/docs` (Swagger UI) for browser-friendly checks.
+
+### 2. End-to-end verification call
+
+Send `no_manifest.jpg` (a plain re-encoded JPEG with no C2PA data) through
+`POST /c2pa/verify` and assert the response. This works without running
+`make_fixtures.py`, since `no_manifest.jpg` is produced first and does not
+require the signing step.
+
+From the **repo root**:
+
+```bash
+curl -F "file=@c2pa-backend/tests/fixtures/no_manifest.jpg" \
+  http://localhost:8001/c2pa/verify | jq .summary.status
+# expected: "no-manifest"
+```
+
+Or equivalently, from inside `c2pa-backend/`:
+
+```bash
+curl -F "file=@tests/fixtures/no_manifest.jpg" \
+  http://localhost:8001/c2pa/verify | jq .summary.status
+# expected: "no-manifest"
+```
+
+A `"no-manifest"` response proves the full chain works end-to-end: HTTP
+intake → multipart parsing → `c2pa-python` ingestion → response
+serialization. Any of the other statuses (`verified`, `tampered`,
+`signed-untrusted`, `error`, …) require fixtures or real signed samples;
+see below.
+
+> Common pitfall: `curl: (26) Failed to open/read local data from
+> file/application` means curl couldn't find the file at the path after
+> `@`. The path is resolved against your current working directory, not
+> against the URL — `cd` to the right place or prepend `c2pa-backend/`.
+
+### 3. (Optional) Exercising the `verified` / `tampered` paths
+
+`no_manifest.jpg` only covers the "no C2PA data" branch. To exercise the
+`verified` / `tampered` branches you need C2PA-signed images:
+
+- **Generated locally:** run `python tests/fixtures/make_fixtures.py`. This
+  writes `verified.jpg` and `tampered.jpg` next to `no_manifest.jpg`,
+  signed by the dev anchor in `trust/dev_anchor.pem`. Requires
+  `C2PA_TRUST_PROFILE=dev` for `summary.status` to come back as
+  `"verified"`. If the signing step fails with `Signature: the
+  certificate is invalid`, the cert profile emitted by the script does
+  not satisfy the current `c2pa-python` requirements — use real signed
+  samples instead (next bullet).
+- **Real-world samples:** download any signed image from
+  [`contentcredentials.org/verify`](https://contentcredentials.org/verify)
+  or the [C2PA `public-testfiles`](https://github.com/c2pa-org/public-testfiles)
+  repo. Under `C2PA_TRUST_PROFILE=c2pa-prod+itl` these return
+  `"verified"`; under `dev` they return `"signed-untrusted"` (the
+  signature itself is valid — only the trust anchor differs).
+
+### 4. Verifying from the GeoLens browser extension
+
+End-to-end through the extension:
+
+1. Start the backend on `:8001` (steps above) and start the extension
+   (`npm run dev` from `extension/`).
+2. In the auto-launched Chrome window, right-click any image →
+   **Validate image**.
+3. The C2PA panel of the overlay reflects `summary.status` from the
+   backend. Most random web images return `"no-manifest"` — that is
+   correct and confirms the wiring.
+4. Background-script logs (full `VerifyOutcome` JSON, including the raw
+   backend response) are available at `chrome://extensions` → toggle
+   *Developer mode* → click *service worker* under the GeoLens entry.
+
 ## Running tests
 
 ```bash
