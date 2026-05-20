@@ -47,7 +47,7 @@ export default defineBackground(() => {
 
       void runGeoLensCheck(tab.id, imageUrl, blob);
       void runExifCheck(tab.id, imageUrl, blob);
-      void runSynthIdCheck(tab.id, imageUrl, blob);
+      void runGoogleAICheck(tab.id, imageUrl, blob);
     } catch (error) {
       console.error('[background] error starting image checks:', error);
       browser.tabs.sendMessage(tab.id, {
