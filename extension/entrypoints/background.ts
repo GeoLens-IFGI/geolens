@@ -226,10 +226,10 @@ async function runGoogleAICheck(tabId: number, imageUrl: string, blob: Blob) {
     if (!apiRes.ok) throw new Error(`Server error: ${apiRes.status}`);
 
     const data = await apiRes.json();
-    const result = data?.checks?.synthid;
+    const result = data?.checks?.googleai;
     
     if (!result) {
-      throw new Error('Missing synthid result from backend');
+      throw new Error('Missing googleai result from backend');
     }
 
     browser.tabs.sendMessage(tabId, {
