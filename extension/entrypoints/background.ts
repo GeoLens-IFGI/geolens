@@ -63,6 +63,9 @@ export default defineBackground(() => {
       });
       browser.tabs.sendMessage(tab.id, {
         action: 'validate-image-google-ai-result',
+        imageUrl,
+        status: 'unavailable',
+        error: 'No image URL was available.',
      });
     }
   });
