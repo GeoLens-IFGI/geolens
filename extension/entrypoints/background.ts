@@ -28,12 +28,11 @@ export default defineBackground(() => {
         error: 'No image URL was available for EXIF decoding.',
       });
       browser.tabs.sendMessage(tab.id, {
-       action: 'validate-image-synthid-result',
-       imageUrl,
-       status: 'unavailable',
-       error: 'No image URL was available for SynthID check.',
+       action: 'validate-image-google-ai-result',
+       imageUrl: null,
+       result,
       });
-      return;
+      return result;
     }
 
     browser.tabs.sendMessage(tab.id, {
@@ -63,10 +62,7 @@ export default defineBackground(() => {
         error: 'Unable to load image for EXIF decoding.',
       });
       browser.tabs.sendMessage(tab.id, {
-        action: 'validate-image-synthid-result',
-        imageUrl,
-        status: 'unavailable',
-        error: 'Unable to load image for SynthID check.',
+        action: 'validate-image-google-ai-result',
      });
     }
   });
@@ -92,6 +88,13 @@ type ExifResult = {
   status: 'available' | 'none' | 'unavailable';
   exif?: ExifSummary;
   error?: string;
+};
+
+type GoogleAIResult = {
+  status: 'verified' | 'not-verified' | 'unavailable';
+  message?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  detail?: string;
 };
 
 async function runGeoLensCheck(tabId: number, imageUrl: string, blob: Blob) {
@@ -206,7 +209,7 @@ function formatGps(latitude?: number, longitude?: number, altitude?: number): st
   return `${Math.abs(latitude).toFixed(5)}° ${latDirection}, ${Math.abs(longitude).toFixed(5)}° ${lonDirection}${altitudePart}`;
 }
 
-async function runSynthIdCheck(tabId: number, imageUrl: string, blob: Blob) {
+async function runGoogleAICheck(tabId: number, imageUrl: string, blob: Blob) {
   try {
     const formData = new FormData();
     formData.append('file', blob, 'image.png');
@@ -219,20 +222,25 @@ async function runSynthIdCheck(tabId: number, imageUrl: string, blob: Blob) {
     if (!apiRes.ok) throw new Error(`Server error: ${apiRes.status}`);
 
     const data = await apiRes.json();
+    const result = data?.checks?.synthid;
+    
+    if (!result) {
+      throw new Error('Missing synthid result from backend');
+    }
 
     browser.tabs.sendMessage(tabId, {
-      action: 'validate-image-synthid-result',
+      action: 'validate-image-google-ai-result',
       imageUrl,
-      status: data.checks.synthid.status,
-      message: data.checks.synthid.message,
-      error: data.checks.synthid.error,
+      status: result.status,
+      message: result.message,
+      error: result.error,
     });
   } catch (err) {
     browser.tabs.sendMessage(tabId, {
-      action: 'validate-image-synthid-result',
+      action: 'validate-image-google-ai-result',
       imageUrl,
       status: 'unavailable',
-      message: 'SynthID check failed',
+      message: 'Google AI provenance check failed',
       error: String(err),
 });
 }
