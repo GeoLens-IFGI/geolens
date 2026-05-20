@@ -113,7 +113,7 @@ function handleExifResult(imageUrl: string, status: ExifStatus, exif?: ExifSumma
 
 function handleGoogleAIResult(imageUrl: string, status: GoogleAIStatus, message?: string, error?: string) {
   const state = getImageState(imageUrl);
-  state.GoogleAI = {
+  state.googleai = {
     status, 
     message, 
     error,
@@ -137,7 +137,7 @@ function getImageState(imageUrl: string): ImageCheckState {
   const state: ImageCheckState = {
     geolens: { status: 'loading' },
     exif: { status: 'loading' },
-    GoogleAI: { status: 'loading' },
+    googleai: { status: 'loading' },
   };
   imageStates.set(imageUrl, state);
   return state;
