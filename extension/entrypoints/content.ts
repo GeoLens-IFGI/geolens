@@ -11,8 +11,8 @@ export default defineContentScript({
         handleGeoLensResult(message.imageUrl, message.status, message.message, message.error);
       } else if (message.action === 'validate-image-exif-result') {
         handleExifResult(message.imageUrl, message.status, message.exif, message.error);
-      } else if (message.action === 'validate-image-google-ai-result') {
-        handleGoogleAIResult(message.imageUrl, message.status, message.message, message.error);
+      } else if (message.action === 'validate-image-synthid-result') {
+        handleSynthIDResult(message.imageUrl, message.status, message.message, message.error);
       }
     });
   },
@@ -50,7 +50,7 @@ type ExifSummary = {
 
 type ExifStatus = 'loading' | 'available' | 'none' | 'unavailable';
 
-type GoogleAIStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
+type SynthIDStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
 
 type ImageCheckState = {
   geolens: {
@@ -64,7 +64,7 @@ type ImageCheckState = {
     error?: string;
   };
   googleai: {
-  status: GoogleAIStatus;
+  status: SynthIDStatus;
   message?: string;
   error?: string;
   };
@@ -81,7 +81,7 @@ function handleValidateStart(imageUrl: string) {
     exif: {
       status: 'loading',
     },
-    googleai: { 
+    synthid: { 
       status: 'loading',
     },
   });
@@ -111,9 +111,9 @@ function handleExifResult(imageUrl: string, status: ExifStatus, exif?: ExifSumma
   renderOverlay(imageUrl);
 }
 
-function handleGoogleAIResult(imageUrl: string, status: GoogleAIStatus, message?: string, error?: string) {
+function handleSynthIDResult(imageUrl: string, status: SynthIDStatus, message?: string, error?: string) {
   const state = getImageState(imageUrl);
-  state.googleai = {
+  state.synthid = {
     status, 
     message, 
     error,
@@ -137,7 +137,7 @@ function getImageState(imageUrl: string): ImageCheckState {
   const state: ImageCheckState = {
     geolens: { status: 'loading' },
     exif: { status: 'loading' },
-    googleai: { status: 'loading' },
+    synthid: { status: 'loading' },
   };
   imageStates.set(imageUrl, state);
   return state;
@@ -186,7 +186,7 @@ function renderOverlay(imageUrl: string) {
 
   overlay.appendChild(renderSection('GeoLens', state.geolens, renderGeoLensContent));
   overlay.appendChild(renderSection('EXIF', state.exif, renderExifContent));
-  overlay.appendChild(renderSection('GoogleAI', state.googleai, renderGoogleAIContent));
+  overlay.appendChild(renderSection('SynthID', state.synthid, renderSynthIDContent));
 
   parent.appendChild(overlay);
 }
@@ -314,17 +314,17 @@ function renderExifContent(statusInfo: { status: string; message?: string; error
   return fragment;
 }
 
-function renderGoogleAIContent(statusInfo: { status: string; message?: string; error?: string }): DocumentFragment {
+function renderSynthIDContent(statusInfo: { status: string; message?: string; error?: string }): DocumentFragment {
   const fragment = document.createDocumentFragment();
   const text = document.createElement('div');
   if (statusInfo.status === 'loading') {
-    text.textContent = 'Scanning for AI provenance indicators...';
+    text.textContent = 'Scanning for SynthID watermark...';
   } else if (statusInfo.status === 'verified') {
-    text.textContent = statusInfo.message ?? 'AI-generated image indicators detected.';
+    text.textContent = statusInfo.message ?? 'No SynthID watermark detected.';
   } else if (statusInfo.status === 'not-verified') {
-    text.textContent = statusInfo.message ?? 'No strong AI generation indicators found.';
+    text.textContent = statusInfo.message ?? 'SynthID watermark detected — possible AI-generated image.';
   } else {
-    text.textContent = statusInfo.error ?? 'AI provenance check unavailable.';
+    text.textContent = statusInfo.error ?? 'SynthID check unavailable.';
   }
   fragment.appendChild(text);
   return fragment;
