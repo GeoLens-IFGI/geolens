@@ -33,7 +33,7 @@ export default defineBackground(() => {
        status: 'unavailable',
        error: 'No image URL was available.',
       });
-      return result;
+      return;
     }
 
     browser.tabs.sendMessage(tab.id, {
