@@ -226,7 +226,7 @@ async function runGoogleAICheck(tabId: number, imageUrl: string, blob: Blob) {
     if (!apiRes.ok) throw new Error(`Server error: ${apiRes.status}`);
 
     const data = await apiRes.json();
-    const result = data?.checks?.googleai;
+    const result = data?.checks?.synthid;
     
     if (!result) {
       throw new Error('Missing googleai result from backend');
