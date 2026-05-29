@@ -63,7 +63,7 @@ type ImageCheckState = {
     exif?: ExifSummary;
     error?: string;
   };
-  googleai: {
+  synthid: {
   status: SynthIDStatus;
   message?: string;
   error?: string;
