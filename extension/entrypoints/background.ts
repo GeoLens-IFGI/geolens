@@ -28,7 +28,7 @@ export default defineBackground(() => {
         error: 'No image URL was available for EXIF decoding.',
       });
       browser.tabs.sendMessage(tab.id, {
-       action: 'validate-image-google-ai-result',
+       action: 'validate-image-synthid-result',
        imageUrl,
        status: 'unavailable',
        error: 'No image URL was available.',
@@ -47,7 +47,7 @@ export default defineBackground(() => {
 
       void runGeoLensCheck(tab.id, imageUrl, blob);
       void runExifCheck(tab.id, imageUrl, blob);
-      void runGoogleAICheck(tab.id, imageUrl, blob);
+      void runSynthIDCheck(tab.id, imageUrl, blob);
     } catch (error) {
       console.error('[background] error starting image checks:', error);
       browser.tabs.sendMessage(tab.id, {
@@ -63,7 +63,7 @@ export default defineBackground(() => {
         error: 'Unable to load image for EXIF decoding.',
       });
       browser.tabs.sendMessage(tab.id, {
-        action: 'validate-image-google-ai-result',
+        action: 'validate-image-synthid-result',
         imageUrl,
         status: 'unavailable',
         error: 'Unable to load image.',
@@ -94,7 +94,7 @@ type ExifResult = {
   error?: string;
 };
 
-type GoogleAIResult = {
+type SynthIDResult = {
   status: 'verified' | 'not-verified' | 'unavailable';
   message?: string;
   confidence?: 'high' | 'medium' | 'low';
@@ -213,7 +213,7 @@ function formatGps(latitude?: number, longitude?: number, altitude?: number): st
   return `${Math.abs(latitude).toFixed(5)}° ${latDirection}, ${Math.abs(longitude).toFixed(5)}° ${lonDirection}${altitudePart}`;
 }
 
-async function runGoogleAICheck(tabId: number, imageUrl: string, blob: Blob) {
+async function runSynthIDCheck(tabId: number, imageUrl: string, blob: Blob) {
   try {
     const formData = new FormData();
     formData.append('file', blob, 'image.png');
@@ -229,11 +229,11 @@ async function runGoogleAICheck(tabId: number, imageUrl: string, blob: Blob) {
     const result = data?.checks?.synthid;
     
     if (!result) {
-      throw new Error('Missing googleai result from backend');
+      throw new Error('Missing synthid result from backend');
     }
 
     browser.tabs.sendMessage(tabId, {
-      action: 'validate-image-google-ai-result',
+      action: 'validate-image-synthid-result',
       imageUrl,
       status: result.status,
       message: result.message,
@@ -241,10 +241,10 @@ async function runGoogleAICheck(tabId: number, imageUrl: string, blob: Blob) {
     });
   } catch (err) {
     browser.tabs.sendMessage(tabId, {
-      action: 'validate-image-google-ai-result',
+      action: 'validate-image-synthid-result',
       imageUrl,
       status: 'unavailable',
-      message: 'Google AI provenance check failed',
+      message: 'SynthID watermark check failed',
       error: String(err),
 });
 }
