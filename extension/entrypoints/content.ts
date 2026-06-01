@@ -11,6 +11,8 @@ export default defineContentScript({
         handleGeoCamResult(message.imageUrl, message.status, message.message, message.error);
       } else if (message.action === 'validate-image-exif-result') {
         handleExifResult(message.imageUrl, message.status, message.exif, message.error);
+      } else if (message.action === 'validate-image-synthid-result') {
+        handleSynthIDResult(message.imageUrl, message.status, message.message, message.error);
       }
     });
   },
@@ -48,6 +50,8 @@ type ExifSummary = {
 
 type ExifStatus = 'loading' | 'available' | 'none' | 'unavailable';
 
+type SynthIDStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
+
 type ImageCheckState = {
   geocam: {
     status: GeoCamStatus;
@@ -58,6 +62,11 @@ type ImageCheckState = {
     status: ExifStatus;
     exif?: ExifSummary;
     error?: string;
+  };
+  synthid: {
+  status: SynthIDStatus;
+  message?: string;
+  error?: string;
   };
 };
 
@@ -70,6 +79,9 @@ function handleValidateStart(imageUrl: string) {
       status: 'loading',
     },
     exif: {
+      status: 'loading',
+    },
+    synthid: { 
       status: 'loading',
     },
   });
@@ -99,6 +111,17 @@ function handleExifResult(imageUrl: string, status: ExifStatus, exif?: ExifSumma
   renderOverlay(imageUrl);
 }
 
+function handleSynthIDResult(imageUrl: string, status: SynthIDStatus, message?: string, error?: string) {
+  const state = getImageState(imageUrl);
+  state.synthid = {
+    status, 
+    message, 
+    error,
+  };
+  
+  renderOverlay(imageUrl);
+}
+
 function findImageByUrl(url: string): HTMLImageElement | null {
   const allImages = document.querySelectorAll('img');
   for (const img of allImages) {
@@ -114,6 +137,7 @@ function getImageState(imageUrl: string): ImageCheckState {
   const state: ImageCheckState = {
     geocam: { status: 'loading' },
     exif: { status: 'loading' },
+    synthid: { status: 'loading' },
   };
   imageStates.set(imageUrl, state);
   return state;
@@ -162,6 +186,7 @@ function renderOverlay(imageUrl: string) {
 
   overlay.appendChild(renderSection('GeoCam', state.geocam, renderGeoCamContent));
   overlay.appendChild(renderSection('EXIF', state.exif, renderExifContent));
+  overlay.appendChild(renderSection('SynthID', state.synthid, renderSynthIDContent));
 
   parent.appendChild(overlay);
 }
@@ -286,6 +311,22 @@ function renderExifContent(statusInfo: { status: string; message?: string; error
     fragment.appendChild(text);
   }
 
+  return fragment;
+}
+
+function renderSynthIDContent(statusInfo: { status: string; message?: string; error?: string }): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  const text = document.createElement('div');
+  if (statusInfo.status === 'loading') {
+    text.textContent = 'Scanning for SynthID watermark...';
+  } else if (statusInfo.status === 'verified') {
+    text.textContent = statusInfo.message ?? 'No SynthID watermark detected.';
+  } else if (statusInfo.status === 'not-verified') {
+    text.textContent = statusInfo.message ?? 'SynthID watermark detected — possible AI-generated image.';
+  } else {
+    text.textContent = statusInfo.error ?? 'SynthID check unavailable.';
+  }
+  fragment.appendChild(text);
   return fragment;
 }
 

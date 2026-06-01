@@ -32,6 +32,12 @@ export default defineBackground(() => {
         status: 'unavailable',
         error: 'No image URL was available for EXIF decoding.',
       });
+      browser.tabs.sendMessage(tab.id, {
+       action: 'validate-image-synthid-result',
+       imageUrl,
+       status: 'unavailable',
+       error: 'No image URL was available.',
+      });
       return;
     }
 
@@ -40,21 +46,22 @@ export default defineBackground(() => {
       imageUrl,
     });
 
-    // Run both checks in parallel.
+    // Run all checks in parallel. Each check owns its own fetch.
     void runGeoCamCheck(tab.id, imageUrl);
     void runExifCheck(tab.id, imageUrl);
+    void runSynthIDCheck(tab.id, imageUrl);
   });
 });
 
 // GeoCam dispatched via registry.
-async function runGeoCamCheck(tabId: number, imageURL: string) {
-  const result = await registry.validateWith('geocam', imageURL);
+async function runGeoCamCheck(tabId: number, imageUrl: string) {
+  const result = await registry.validateWith('geocam', imageUrl);
 
   if (!result) {
     // Just in case no validator named 'geocam' was registered.
     browser.tabs.sendMessage(tabId, {
       action: 'validate-image-geocam-result',
-      imageURL,
+      imageUrl,
       status: 'unavailable',
       error: 'GeoCam validator is not registered.',
     });
@@ -65,7 +72,7 @@ async function runGeoCamCheck(tabId: number, imageURL: string) {
   // which the content script understands.
   browser.tabs.sendMessage(tabId, {
     action: 'validate-image-geocam-result',
-    imageURL,
+    imageUrl,
     status: result.status,
     message: result.message,
     error: result.error,
@@ -89,6 +96,13 @@ type ExifResult = {
   status: 'available' | 'none' | 'unavailable';
   exif?: ExifSummary;
   error?: string;
+};
+
+type SynthIDResult = {
+  status: 'verified' | 'not-verified' | 'unavailable';
+  message?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  detail?: string;
 };
 
 async function runExifCheck(tabId: number, imageUrl: string) {
@@ -158,4 +172,45 @@ function formatGps(latitude?: number, longitude?: number, altitude?: number): st
   const altitudePart = typeof altitude === 'number' ? `, ${Math.abs(altitude).toFixed(0)} m` : '';
 
   return `${Math.abs(latitude).toFixed(5)}° ${latDirection}, ${Math.abs(longitude).toFixed(5)}° ${lonDirection}${altitudePart}`;
+}
+
+async function runSynthIDCheck(tabId: number, imageUrl: string) {
+  try {
+    // Like EXIF, SynthID owns its own fetch now that there's no shared blob.
+    const imgRes = await fetch(imageUrl);
+    const blob = await imgRes.blob();
+
+    const formData = new FormData();
+    formData.append('file', blob, 'image.png');
+
+    const apiRes = await fetch('http://localhost:8000/verify-image/', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!apiRes.ok) throw new Error(`Server error: ${apiRes.status}`);
+
+    const data = await apiRes.json();
+    const result = data?.checks?.synthid;
+    
+    if (!result) {
+      throw new Error('Missing synthid result from backend');
+    }
+
+    browser.tabs.sendMessage(tabId, {
+      action: 'validate-image-synthid-result',
+      imageUrl,
+      status: result.status,
+      message: result.message,
+      error: result.error,
+    });
+  } catch (err) {
+    browser.tabs.sendMessage(tabId, {
+      action: 'validate-image-synthid-result',
+      imageUrl,
+      status: 'unavailable',
+      message: 'SynthID watermark check failed',
+      error: String(err),
+    });
+  }
 }
