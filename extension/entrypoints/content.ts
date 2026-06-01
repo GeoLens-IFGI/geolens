@@ -7,8 +7,8 @@ export default defineContentScript({
       console.log('[content] message received:', message);
       if (message.action === 'validate-image-start') {
         handleValidateStart(message.imageUrl);
-      } else if (message.action === 'validate-image-geolens-result') {
-        handleGeoLensResult(message.imageUrl, message.status, message.message, message.error);
+      } else if (message.action === 'validate-image-geocam-result') {
+        handleGeoCamResult(message.imageUrl, message.status, message.message, message.error);
       } else if (message.action === 'validate-image-exif-result') {
         handleExifResult(message.imageUrl, message.status, message.exif, message.error);
       } else if (message.action === 'validate-image-synthid-result') {
@@ -28,7 +28,7 @@ function injectSpinnerStyles() {
   styleInjected = true;
   const style = document.createElement('style');
   style.textContent = `
-    @keyframes geolens-spin {
+    @keyframes geocam-spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
@@ -36,7 +36,7 @@ function injectSpinnerStyles() {
   document.head.appendChild(style);
 }
 
-type GeoLensStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
+type GeoCamStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
 
 type ExifSummary = {
   camera?: string;
@@ -53,8 +53,8 @@ type ExifStatus = 'loading' | 'available' | 'none' | 'unavailable';
 type SynthIDStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
 
 type ImageCheckState = {
-  geolens: {
-    status: GeoLensStatus;
+  geocam: {
+    status: GeoCamStatus;
     message?: string;
     error?: string;
   };
@@ -75,7 +75,7 @@ const imageStates = new Map<string, ImageCheckState>();
 function handleValidateStart(imageUrl: string) {
   console.log('[content] handleValidateStart called with URL:', imageUrl);
   imageStates.set(imageUrl, {
-    geolens: {
+    geocam: {
       status: 'loading',
     },
     exif: {
@@ -89,9 +89,9 @@ function handleValidateStart(imageUrl: string) {
   renderOverlay(imageUrl);
 }
 
-function handleGeoLensResult(imageUrl: string, status: GeoLensStatus, message?: string, error?: string) {
+function handleGeoCamResult(imageUrl: string, status: GeoCamStatus, message?: string, error?: string) {
   const state = getImageState(imageUrl);
-  state.geolens = {
+  state.geocam = {
     status,
     message,
     error,
@@ -135,7 +135,7 @@ function getImageState(imageUrl: string): ImageCheckState {
   if (existing) return existing;
 
   const state: ImageCheckState = {
-    geolens: { status: 'loading' },
+    geocam: { status: 'loading' },
     exif: { status: 'loading' },
     synthid: { status: 'loading' },
   };
@@ -152,14 +152,14 @@ function renderOverlay(imageUrl: string) {
 
   parent.style.position = 'relative';
 
-  const existing = parent.querySelectorAll('.geolens-ext-overlay');
+  const existing = parent.querySelectorAll('.geocam-ext-overlay');
   existing.forEach(e => e.remove());
 
   injectSpinnerStyles();
 
   const state = getImageState(imageUrl);
   const overlay = document.createElement('div');
-  overlay.className = 'geolens-ext-overlay';
+  overlay.className = 'geocam-ext-overlay';
   overlay.style.position = 'absolute';
   overlay.style.left = '5px';
   overlay.style.right = '5px';
@@ -178,13 +178,13 @@ function renderOverlay(imageUrl: string) {
   overlay.style.overflow = 'auto';
 
   const title = document.createElement('div');
-  title.textContent = 'GeoLens checks';
+  title.textContent = 'GeoCam checks';
   title.style.fontWeight = '700';
   title.style.marginBottom = '8px';
   title.style.letterSpacing = '0.02em';
   overlay.appendChild(title);
 
-  overlay.appendChild(renderSection('GeoLens', state.geolens, renderGeoLensContent));
+  overlay.appendChild(renderSection('GeoCam', state.geocam, renderGeoCamContent));
   overlay.appendChild(renderSection('EXIF', state.exif, renderExifContent));
   overlay.appendChild(renderSection('SynthID', state.synthid, renderSynthIDContent));
 
@@ -232,18 +232,18 @@ function renderSection(
   return section;
 }
 
-function renderGeoLensContent(statusInfo: { status: string; message?: string; error?: string }): DocumentFragment {
+function renderGeoCamContent(statusInfo: { status: string; message?: string; error?: string }): DocumentFragment {
   const fragment = document.createDocumentFragment();
   const text = document.createElement('div');
 
   if (statusInfo.status === 'loading') {
-    text.textContent = 'Checking GeoLens service...';
+    text.textContent = 'Checking GeoCam service...';
   } else if (statusInfo.status === 'verified') {
-    text.textContent = statusInfo.message ?? 'GeoLens verified this image.';
+    text.textContent = statusInfo.message ?? 'GeoCam verified this image.';
   } else if (statusInfo.status === 'not-verified') {
-    text.textContent = statusInfo.message ?? 'GeoLens completed without a verification message.';
+    text.textContent = statusInfo.message ?? 'GeoCam completed without a verification message.';
   } else {
-    text.textContent = statusInfo.error ?? 'GeoLens service is unavailable.';
+    text.textContent = statusInfo.error ?? 'GeoCam service is unavailable.';
   }
 
   fragment.appendChild(text);
