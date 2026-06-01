@@ -15,6 +15,8 @@ export default defineContentScript({
         handleSynthIDResult(message.imageUrl, message.status, message.message, message.error);
       }
     });
+
+    injectImageHoverCursor();
   },
 });
 
@@ -23,6 +25,7 @@ export default defineContentScript({
 // ============================================================
 
 let styleInjected = false;
+let cursorStyleInjected = false;
 function injectSpinnerStyles() {
   if (styleInjected) return;
   styleInjected = true;
@@ -189,6 +192,22 @@ function renderOverlay(imageUrl: string) {
   overlay.appendChild(renderSection('SynthID', state.synthid, renderSynthIDContent));
 
   parent.appendChild(overlay);
+}
+
+function injectImageHoverCursor() {
+  if (cursorStyleInjected) return;
+  cursorStyleInjected = true;
+
+  const style = document.createElement('style');
+  const cursorUrl = browser.runtime.getURL('/magnifying-lens-128.png');
+  const hotspotX = 128 / 4;
+  const hotspotY = 128 / 4;
+  style.textContent = `
+    img:hover {
+      cursor: url("${cursorUrl}") ${hotspotX} ${hotspotY}, auto !important;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 function renderSection(
