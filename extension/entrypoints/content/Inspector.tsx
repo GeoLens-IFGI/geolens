@@ -10,6 +10,7 @@ import {
   XCircle,
   MinusCircle,
   AlertTriangle,
+  BadgeCheck,
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
@@ -157,7 +158,7 @@ export function Inspector({
                 <div className="space-y-5">
                   <BackendMethodRow label="GeoCam" state={inspection.geocam} passLabel="Verified" failLabel="Not verified" />
                   <BackendMethodRow label="SynthID" state={inspection.synthid} passLabel="No watermark" failLabel="Watermark found" />
-                  <BackendMethodRow label="C2PA" state={inspection.c2pa} passLabel="Verified" failLabel="Not verified" cautionLabel="Unknown signer" />
+                  <BackendMethodRow label="C2PA" state={inspection.c2pa} passLabel="Verified" failLabel="Not verified" cautionLabel="Unknown signer" legacyLabel="Legacy trust" />
                 </div>
               </div>
             </div>
@@ -217,18 +218,20 @@ function BackendMethodRow({
   passLabel,
   failLabel,
   cautionLabel = 'Caution',
+  legacyLabel = 'Verified (legacy)',
 }: {
   label: string;
   state: MethodState;
   passLabel: string;
   failLabel: string;
   cautionLabel?: string;
+  legacyLabel?: string;
 }) {
   return (
     <div className="bg-white/10 rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-white font-semibold text-lg">{label}</span>
-        <StatusBadge state={state} passLabel={passLabel} failLabel={failLabel} cautionLabel={cautionLabel} />
+        <StatusBadge state={state} passLabel={passLabel} failLabel={failLabel} cautionLabel={cautionLabel} legacyLabel={legacyLabel} />
       </div>
       {(state.message || state.error) && state.status !== 'loading' && (
         <p className="text-gray-300 text-sm mt-2 leading-snug">{state.message || state.error}</p>
@@ -243,11 +246,13 @@ function StatusBadge({
   passLabel,
   failLabel,
   cautionLabel,
+  legacyLabel,
 }: {
   state: MethodState;
   passLabel: string;
   failLabel: string;
   cautionLabel: string;
+  legacyLabel: string;
 }) {
   if (state.status === 'loading') {
     return (
@@ -262,6 +267,14 @@ function StatusBadge({
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/20 text-green-300 text-sm font-semibold">
         <CheckCircle2 className="w-4 h-4" />
         {passLabel}
+      </span>
+    );
+  }
+  if (state.status === 'verified-legacy') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-sm font-semibold">
+        <BadgeCheck className="w-4 h-4" />
+        {legacyLabel}
       </span>
     );
   }
@@ -343,6 +356,7 @@ function MethodDetail({ label, state }: { label: string; state: MethodState }) {
 
 function statusFallback(status: MethodState['status']) {
   if (status === 'verified') return 'Passed.';
+  if (status === 'verified-legacy') return 'Trusted via the legacy Interim Trust List.';
   if (status === 'caution') return 'Signed, but not fully vetted.';
   if (status === 'not-verified') return 'Flagged.';
   return 'Could not be checked.';
@@ -351,6 +365,7 @@ function statusFallback(status: MethodState['status']) {
 function StatusDot({ status }: { status: MethodState['status'] }) {
   if (status === 'loading') return <Loader2 className="w-4 h-4 animate-spin text-gray-400" />;
   if (status === 'verified') return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+  if (status === 'verified-legacy') return <BadgeCheck className="w-5 h-5 text-blue-600" />;
   if (status === 'caution') return <AlertTriangle className="w-5 h-5 text-amber-500" />;
   if (status === 'not-verified') return <XCircle className="w-5 h-5 text-red-600" />;
   return <MinusCircle className="w-5 h-5 text-gray-400" />;

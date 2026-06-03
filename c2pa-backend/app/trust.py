@@ -29,6 +29,17 @@ PROFILE_BUNDLES: dict[TrustProfile, list[str]] = {
     "dev": ["dev_anchor.pem"],
 }
 
+# For each profile, the "conformant-only" equivalent — i.e. the same anchors
+# minus the frozen Interim Trust List. Used to tell whether a Trusted result
+# depended on the ITL (a "legacy" signer) or holds against the official
+# Conformance-Program trust list alone. None means the profile is already
+# conformant-only (or dev), so no legacy distinction is meaningful.
+_CONFORMANT_EQUIVALENT: dict[TrustProfile, TrustProfile | None] = {
+    "c2pa-prod+itl": "c2pa-prod",
+    "c2pa-prod": None,
+    "dev": None,
+}
+
 
 @dataclass(frozen=True)
 class LoadedTrust:
@@ -52,13 +63,29 @@ def load_trust(settings: Settings) -> LoadedTrust:
     mode a missing file IS a startup error, because silently degrading
     to "no trust anchors" would mark every signed image as untrusted.
     """
-    bundle_files = PROFILE_BUNDLES[settings.trust_profile]
+    return _load_profile(settings.trust_profile, settings.trust_dir)
+
+
+def load_conformant_trust(settings: Settings) -> LoadedTrust | None:
+    """Load the conformant-only anchors (active profile minus the ITL).
+
+    Returns None when the active profile carries no Interim Trust List, since
+    there is then no "legacy vs conformant" distinction to draw.
+    """
+    base = _CONFORMANT_EQUIVALENT.get(settings.trust_profile)
+    if base is None:
+        return None
+    return _load_profile(base, settings.trust_dir)
+
+
+def _load_profile(profile: TrustProfile, trust_dir: Path) -> LoadedTrust:
+    bundle_files = PROFILE_BUNDLES[profile]
     pem_chunks: list[str] = []
     sources: list[Path] = []
     missing: list[Path] = []
 
     for name in bundle_files:
-        path = (settings.trust_dir / name).resolve()
+        path = (trust_dir / name).resolve()
         if not path.exists():
             missing.append(path)
             continue
@@ -67,18 +94,18 @@ def load_trust(settings: Settings) -> LoadedTrust:
         sources.append(path)
         logger.info("Loaded trust bundle: %s", path)
 
-    if missing and settings.trust_profile.startswith("c2pa-prod"):
+    if missing and profile.startswith("c2pa-prod"):
         raise RuntimeError(
             "Trust profile %r requires the following PEM bundle(s) which were "
             "not found: %s. Drop them into %s, or switch C2PA_TRUST_PROFILE to "
             "'dev' for local testing."
-            % (settings.trust_profile, [str(p) for p in missing], settings.trust_dir)
+            % (profile, [str(p) for p in missing], trust_dir)
         )
 
     if missing:
         logger.warning(
             "Profile %r expected these bundles but they are missing (continuing): %s",
-            settings.trust_profile,
+            profile,
             [str(p) for p in missing],
         )
 
@@ -86,7 +113,7 @@ def load_trust(settings: Settings) -> LoadedTrust:
     anchor_count = anchors_pem.count("BEGIN CERTIFICATE")
 
     return LoadedTrust(
-        profile=settings.trust_profile,
+        profile=profile,
         anchors_pem=anchors_pem,
         sources=sources,
         anchor_count=anchor_count,

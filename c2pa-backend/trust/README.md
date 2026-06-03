@@ -14,9 +14,49 @@ profile is active (set by `C2PA_TRUST_PROFILE`).
 
 None of the production PEM bundles are checked into this repository —
 they are environment-specific and may be updated independently of this
-codebase. Drop them here, then start the service. The `dev_anchor.pem`
-file is generated automatically when you run the test fixtures script
-and is also gitignored.
+codebase. The `dev_anchor.pem` file is generated automatically when you
+run the test fixtures script and is also gitignored.
+
+## Reproducible setup
+
+Instead of vendoring the bundles, fetch them from their authoritative
+sources and verify the bytes against the pinned digests in `SHA256SUMS`:
+
+```bash
+cd c2pa-backend
+./fetch-trust.sh            # download + verify against trust/SHA256SUMS
+./fetch-trust.sh --update   # download + re-pin SHA256SUMS to the current bytes
+```
+
+You can also verify on demand without re-downloading:
+
+```bash
+cd c2pa-backend/trust && sha256sum -c SHA256SUMS
+```
+
+### Pinned sources
+
+Retrieved **2026-06-03**. SHA-256 digests are recorded in `trust/SHA256SUMS`
+(tracked in git); the bundles themselves are not.
+
+| File                      | Frozen? | Source URL                                                                                                  | SHA-256        |
+| ------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- | -------------- |
+| `c2pa_trust_list.pem`     | live    | `https://raw.githubusercontent.com/c2pa-org/conformance-public/refs/heads/main/trust-list/C2PA-TRUST-LIST.pem`     | `0973d432…52c4` |
+| `c2pa_tsa_trust_list.pem` | live    | `https://raw.githubusercontent.com/c2pa-org/conformance-public/refs/heads/main/trust-list/C2PA-TSA-TRUST-LIST.pem` | `9ba9ace3…dd8c` |
+| `c2pa_itl.pem`            | **frozen** | `https://raw.githubusercontent.com/contentauth/verify-site/main/static/trust/anchors.pem` (mirror of `https://contentcredentials.org/trust/anchors.pem`) | `548162bd…4c52` |
+
+### Checksum policy
+
+- **`c2pa_itl.pem` is frozen** (no new entries after 2026-01-01), so its
+  digest is pinned in `fetch-trust.sh` and a mismatch is a **hard error** —
+  it can only mean the upstream bytes were altered.
+- **The Trust List and TSA Trust List are live** and grow as new signers
+  are admitted to the Conformance Program, so a digest change is expected.
+  `fetch-trust.sh` **warns** and asks you to review and re-pin with
+  `--update` rather than failing.
+
+This keeps the trust material (and the dev signing key) out of git history
+while giving anyone a deterministic way to recreate `trust/`.
 
 If a profile is selected and one of its expected PEM files is missing:
 

@@ -69,6 +69,13 @@ _REVOKED_CODES = {
 _UNTRUSTED_CODES = {
     "signingCredential.untrusted",
 }
+# Failures that bear on neither manifest integrity nor signer trust, and so
+# must not downgrade an otherwise-Trusted result. `cawg.ica.did_unavailable`
+# means a CAWG identity assertion's DID could not be resolved (needs network);
+# that's orthogonal to whether the C2PA claim signature is valid and trusted.
+_IGNORABLE_FAILURE_CODES = {
+    "cawg.ica.did_unavailable",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +281,11 @@ def _derive_summary(
     validation_state: str | None,
     results: ValidationResults,
 ) -> Summary:
-    failure_codes = _failure_code_set(results)
+    # Drop failures that don't speak to integrity or trust (e.g. a CAWG
+    # identity DID that couldn't be resolved over the network) so they can't
+    # mask an otherwise-Trusted result.
+    failure_codes = _failure_code_set(results) - _IGNORABLE_FAILURE_CODES
+    state = (validation_state or "").lower()
 
     status: SummaryStatus
     if failure_codes & _TAMPER_CODES:
@@ -285,17 +296,18 @@ def _derive_summary(
         status = "revoked"
     elif failure_codes & _EXPIRED_CODES:
         status = "expired"
-    elif failure_codes & _UNTRUSTED_CODES:
+    elif failure_codes & _UNTRUSTED_CODES or state in {"untrusted", "invalid"}:
         status = "signed-untrusted"
-    elif failure_codes:
-        # Some other unmapped failure code — bias toward 'signed-untrusted'
-        # rather than 'tampered', since tampering codes are explicit above.
-        status = "signed-untrusted"
-    elif (validation_state or "").lower() == "valid":
+    elif state == "trusted":
+        # c2pa-rs established the signer chains to a configured trust anchor.
         status = "verified"
-    elif (validation_state or "").lower() in {"untrusted", "invalid"}:
-        # validation_state of "Untrusted" maps cleanly to signed-untrusted.
+    elif failure_codes:
+        # Some other unmapped, significant failure code — bias toward
+        # 'signed-untrusted' rather than 'tampered' (tamper codes are explicit).
         status = "signed-untrusted"
+    elif state == "valid":
+        # Valid with no significant failures and no trust evaluation signal.
+        status = "verified"
     else:
         # No failures recorded but we couldn't read state — treat as verified
         # because c2pa-rs would have populated failures otherwise.

@@ -1,7 +1,14 @@
 // the possible outcomes of a verfication attempt.
 // 'caution' = passed integrity checks but warrants a warning (e.g. valid
 // signature whose signer is not on the trust list). Renders amber in the UI.
-export type ValidationStatus = 'verified' | 'not-verified' | 'unavailable' | 'caution';
+// 'verified-legacy' = trusted, but only via the frozen Interim Trust List
+// (not the Conformance-Program trust list). Renders as a distinct tier.
+export type ValidationStatus =
+    | 'verified'
+    | 'verified-legacy'
+    | 'not-verified'
+    | 'unavailable'
+    | 'caution';
 
 // the standardized result every verfication method returns.
 // optional fields may be ommitted.

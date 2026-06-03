@@ -19,7 +19,12 @@ from fastapi.responses import JSONResponse
 from . import __version__
 from .models import HealthResponse, VerifyResponse
 from .settings import settings
-from .trust import LoadedTrust, build_c2pa_settings_dict, load_trust
+from .trust import (
+    LoadedTrust,
+    build_c2pa_settings_dict,
+    load_conformant_trust,
+    load_trust,
+)
 from .verify import verify_blob
 
 logger = logging.getLogger("geolens.c2pa")
@@ -31,6 +36,11 @@ logging.basicConfig(level=settings.log_level)
 class AppState:
     trust: LoadedTrust | None = None
     context: c2pa.Context | None = None
+    # Conformant-only (active profile minus the ITL). Populated only when the
+    # active profile includes the Interim Trust List, so we can tell whether a
+    # Trusted result depended on the ITL ("legacy") or holds without it.
+    conformant_trust: LoadedTrust | None = None
+    conformant_context: c2pa.Context | None = None
 
 
 @asynccontextmanager
@@ -44,17 +54,30 @@ async def lifespan(app: FastAPI):
     app.state.app_state.trust = trust
     app.state.app_state.context = context
 
+    # Build a second, conformant-only context for trust-tier detection.
+    conformant_trust = load_conformant_trust(settings)
+    if conformant_trust is not None:
+        conformant_settings = build_c2pa_settings_dict(
+            conformant_trust, ocsp_live=settings.ocsp_live
+        )
+        app.state.app_state.conformant_trust = conformant_trust
+        app.state.app_state.conformant_context = c2pa.Context(
+            settings=c2pa.Settings.from_dict(conformant_settings)
+        )
+
     logger.info(
-        "C2PA backend ready: profile=%s anchors=%d sdk=%s",
+        "C2PA backend ready: profile=%s anchors=%d (conformant anchors=%s) sdk=%s",
         trust.profile,
         trust.anchor_count,
+        conformant_trust.anchor_count if conformant_trust else "n/a",
         c2pa.sdk_version(),
     )
     try:
         yield
     finally:
-        # c2pa.Context owns native resources; let the runtime collect it.
+        # c2pa.Context owns native resources; let the runtime collect them.
         app.state.app_state.context = None
+        app.state.app_state.conformant_context = None
 
 
 app = FastAPI(
@@ -120,12 +143,33 @@ async def verify_image(
 
     mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "image/jpeg"
 
-    return verify_blob(
+    response = verify_blob(
         data=data,
         mime_type=mime_type,
         context=state.context,
         trust=state.trust,
     )
+
+    # If the image is Verified under the full (incl. ITL) trust list, re-check
+    # it against the conformant-only anchors. If it no longer verifies there,
+    # the signer is only on the frozen Interim Trust List → "legacy" trust,
+    # which the C2PA Conformance Program has not evaluated. Surface that as a
+    # distinct status so the UI can show it differently from full conformance.
+    if (
+        response.summary.status == "verified"
+        and state.conformant_context is not None
+        and state.conformant_trust is not None
+    ):
+        conformant = verify_blob(
+            data=data,
+            mime_type=mime_type,
+            context=state.conformant_context,
+            trust=state.conformant_trust,
+        )
+        if conformant.summary.status != "verified":
+            response.summary.status = "verified-legacy"
+
+    return response
 
 
 @app.post("/c2pa/discover")

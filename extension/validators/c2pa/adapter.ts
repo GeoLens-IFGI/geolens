@@ -81,6 +81,13 @@ class C2paAdapter implements Validator {
                     message: `Valid Content Credentials.${signerSuffix}`,
                     details: summary,
                 };
+            case 'verified-legacy':
+                return {
+                    status: 'verified-legacy',
+                    validatorName: this.name,
+                    message: `Valid Content Credentials, trusted via the legacy Interim Trust List (not yet Conformance-Program vetted).${signerSuffix}`,
+                    details: summary,
+                };
             case 'signed-untrusted':
                 return {
                     status: 'caution',

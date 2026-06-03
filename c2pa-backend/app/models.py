@@ -59,6 +59,7 @@ class ValidationResults(BaseModel):
 
 SummaryStatus = Literal[
     "verified",
+    "verified-legacy",
     "signed-untrusted",
     "tampered",
     "signature-invalid",

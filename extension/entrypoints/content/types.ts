@@ -3,7 +3,15 @@
 
 // 'caution' = an amber, "valid but warrants attention" state (e.g. a C2PA
 // manifest with a valid signature whose signer is not on the trust list).
-export type MethodStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable' | 'caution';
+// 'verified-legacy' = trusted, but only via the frozen Interim Trust List —
+// a distinct (blue) tier weaker than full Conformance-Program verification.
+export type MethodStatus =
+  | 'loading'
+  | 'verified'
+  | 'verified-legacy'
+  | 'not-verified'
+  | 'unavailable'
+  | 'caution';
 
 export interface MethodState {
   status: MethodStatus;
