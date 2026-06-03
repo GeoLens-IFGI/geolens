@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   XCircle,
   MinusCircle,
+  AlertTriangle,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import type { Inspection, MethodState } from './types';
 import { computeVerdict, VERDICT_STYLE } from './verdict';
@@ -154,7 +157,7 @@ export function Inspector({
                 <div className="space-y-5">
                   <BackendMethodRow label="GeoCam" state={inspection.geocam} passLabel="Verified" failLabel="Not verified" />
                   <BackendMethodRow label="SynthID" state={inspection.synthid} passLabel="No watermark" failLabel="Watermark found" />
-                  <BackendMethodRow label="C2PA" state={inspection.c2pa} passLabel="Verified" failLabel="Not verified" />
+                  <BackendMethodRow label="C2PA" state={inspection.c2pa} passLabel="Verified" failLabel="Not verified" cautionLabel="Unknown signer" />
                 </div>
               </div>
             </div>
@@ -213,21 +216,24 @@ function BackendMethodRow({
   state,
   passLabel,
   failLabel,
+  cautionLabel = 'Caution',
 }: {
   label: string;
   state: MethodState;
   passLabel: string;
   failLabel: string;
+  cautionLabel?: string;
 }) {
   return (
     <div className="bg-white/10 rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-white font-semibold text-lg">{label}</span>
-        <StatusBadge state={state} passLabel={passLabel} failLabel={failLabel} />
+        <StatusBadge state={state} passLabel={passLabel} failLabel={failLabel} cautionLabel={cautionLabel} />
       </div>
       {(state.message || state.error) && state.status !== 'loading' && (
         <p className="text-gray-300 text-sm mt-2 leading-snug">{state.message || state.error}</p>
       )}
+      <DetailDisclosure state={state} tone="dark" />
     </div>
   );
 }
@@ -236,10 +242,12 @@ function StatusBadge({
   state,
   passLabel,
   failLabel,
+  cautionLabel,
 }: {
   state: MethodState;
   passLabel: string;
   failLabel: string;
+  cautionLabel: string;
 }) {
   if (state.status === 'loading') {
     return (
@@ -254,6 +262,14 @@ function StatusBadge({
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/20 text-green-300 text-sm font-semibold">
         <CheckCircle2 className="w-4 h-4" />
         {passLabel}
+      </span>
+    );
+  }
+  if (state.status === 'caution') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-sm font-semibold">
+        <AlertTriangle className="w-4 h-4" />
+        {cautionLabel}
       </span>
     );
   }
@@ -320,12 +336,14 @@ function MethodDetail({ label, state }: { label: string; state: MethodState }) {
         <StatusDot status={state.status} />
       </div>
       <p className="text-sm text-gray-600 mt-1 leading-snug">{text}</p>
+      <DetailDisclosure state={state} tone="light" />
     </div>
   );
 }
 
 function statusFallback(status: MethodState['status']) {
   if (status === 'verified') return 'Passed.';
+  if (status === 'caution') return 'Signed, but not fully vetted.';
   if (status === 'not-verified') return 'Flagged.';
   return 'Could not be checked.';
 }
@@ -333,8 +351,60 @@ function statusFallback(status: MethodState['status']) {
 function StatusDot({ status }: { status: MethodState['status'] }) {
   if (status === 'loading') return <Loader2 className="w-4 h-4 animate-spin text-gray-400" />;
   if (status === 'verified') return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+  if (status === 'caution') return <AlertTriangle className="w-5 h-5 text-amber-500" />;
   if (status === 'not-verified') return <XCircle className="w-5 h-5 text-red-600" />;
   return <MinusCircle className="w-5 h-5 text-gray-400" />;
+}
+
+// Progressive disclosure: a "Why?" toggle that reveals the technical reason
+// behind a caution/failure. Only renders when there's a detail to show and the
+// state warrants it; methods that never set `detail` (GeoCam, SynthID) render
+// nothing, leaving their boxes unchanged.
+function DetailDisclosure({
+  state,
+  tone,
+}: {
+  state: MethodState;
+  tone: 'dark' | 'light';
+}) {
+  const [open, setOpen] = useState(false);
+
+  const eligible = state.status === 'caution' || state.status === 'not-verified';
+  if (!eligible || !state.detail) return null;
+
+  const Chevron = open ? ChevronDown : ChevronRight;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={(e) => {
+          // Stop the click from bubbling to the card's flip handler.
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className={cn(
+          'inline-flex items-center gap-1 text-xs font-medium transition-colors',
+          tone === 'dark'
+            ? 'text-gray-400 hover:text-gray-200'
+            : 'text-gray-500 hover:text-gray-800',
+        )}
+      >
+        <Chevron className="w-3.5 h-3.5" />
+        {open ? 'Hide details' : 'Why?'}
+      </button>
+      {open && (
+        <pre
+          className={cn(
+            'mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-snug',
+            tone === 'dark' ? 'text-gray-400' : 'text-gray-600',
+          )}
+        >
+          {state.detail}
+        </pre>
+      )}
+    </div>
+  );
 }
 
 // ── EXIF panel ───────────────────────────────────────────────────────────────

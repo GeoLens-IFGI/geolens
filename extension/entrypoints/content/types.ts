@@ -1,11 +1,15 @@
 // Shared types for the in-page Inspector UI.
 // These mirror the wire messages sent by the background script.
 
-export type MethodStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable';
+// 'caution' = an amber, "valid but warrants attention" state (e.g. a C2PA
+// manifest with a valid signature whose signer is not on the trust list).
+export type MethodStatus = 'loading' | 'verified' | 'not-verified' | 'unavailable' | 'caution';
 
 export interface MethodState {
   status: MethodStatus;
   message?: string;
+  // Longer technical reason, surfaced behind a "Why?" toggle (progressive disclosure).
+  detail?: string;
   error?: string;
   // Coordinates a method may report (e.g. GeoCam's captured location).
   lat?: number;

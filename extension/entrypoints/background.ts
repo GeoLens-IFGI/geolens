@@ -83,6 +83,7 @@ async function runC2PACheck(tabId: number, imageUrl: string) {
     imageUrl,
     status: result.status,
     message: result.message,
+    detail: result.detail,
     error: result.error,
   });
 }

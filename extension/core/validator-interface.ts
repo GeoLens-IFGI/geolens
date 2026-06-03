@@ -1,12 +1,15 @@
 // the possible outcomes of a verfication attempt.
-export type ValidationStatus = 'verified' | 'not-verified' | 'unavailable';
+// 'caution' = passed integrity checks but warrants a warning (e.g. valid
+// signature whose signer is not on the trust list). Renders amber in the UI.
+export type ValidationStatus = 'verified' | 'not-verified' | 'unavailable' | 'caution';
 
 // the standardized result every verfication method returns.
 // optional fields may be ommitted.
 export type ValidationResult = {
     status: ValidationStatus;
     validatorName: string;
-    message?: string;
+    message?: string;                  // Short, top-level summary line.
+    detail?: string;                   // Longer technical reason (progressive disclosure).
     confidence?: number;
     details?: Record<string, unknown>  // Details specific to verification method.
     error?: string;                    // Reason for 'unavailable' status

@@ -98,6 +98,7 @@ function patchMethod(key: 'geocam' | 'synthid' | 'c2pa', message: any) {
   const next: MethodState = {
     status: message.status,
     message: message.message,
+    detail: message.detail,
     error: message.error,
     lat: message.lat,
     lng: message.lng,
