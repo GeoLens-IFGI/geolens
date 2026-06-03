@@ -68,6 +68,9 @@ function handleMessage(message: any) {
     case 'validate-image-synthid-result':
       patchMethod('synthid', message);
       break;
+    case 'validate-image-c2pa-result':
+      patchMethod('c2pa', message);
+      break;
     case 'validate-image-exif-result':
       patchExif(message);
       break;
@@ -84,11 +87,12 @@ function startInspection(imageUrl: string) {
     naturalHeight: img?.naturalHeight || undefined,
     geocam: { status: 'loading' },
     synthid: { status: 'loading' },
+    c2pa: { status: 'loading' },
     exif: { status: 'loading' },
   });
 }
 
-function patchMethod(key: 'geocam' | 'synthid', message: any) {
+function patchMethod(key: 'geocam' | 'synthid' | 'c2pa', message: any) {
   const current = getInspection();
   if (!current || current.imageUrl !== message.imageUrl) return;
   const next: MethodState = {

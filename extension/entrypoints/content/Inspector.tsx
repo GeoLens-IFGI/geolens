@@ -154,6 +154,7 @@ export function Inspector({
                 <div className="space-y-5">
                   <BackendMethodRow label="GeoCam" state={inspection.geocam} passLabel="Verified" failLabel="Not verified" />
                   <BackendMethodRow label="SynthID" state={inspection.synthid} passLabel="No watermark" failLabel="Watermark found" />
+                  <BackendMethodRow label="C2PA" state={inspection.c2pa} passLabel="Verified" failLabel="Not verified" />
                 </div>
               </div>
             </div>
@@ -300,6 +301,7 @@ function VerificationPanel({ inspection }: { inspection: Inspection }) {
       <div className="space-y-3">
         <MethodDetail label="GeoCam" state={inspection.geocam} />
         <MethodDetail label="SynthID" state={inspection.synthid} />
+        <MethodDetail label="C2PA" state={inspection.c2pa} />
       </div>
     </div>
   );

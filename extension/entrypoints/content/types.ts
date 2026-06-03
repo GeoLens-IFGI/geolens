@@ -53,5 +53,6 @@ export interface Inspection {
   format?: string;
   geocam: MethodState;
   synthid: MethodState;
+  c2pa: MethodState;
   exif: ExifState;
 }

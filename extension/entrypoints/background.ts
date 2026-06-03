@@ -4,6 +4,7 @@ import { registry } from '../core/registry';
 // Loading this module triggers the adapter's
 // self-registration with the regristry (side effect).
 import '../validators/geocam/adapter';
+import '../validators/c2pa/adapter';
 
 export default defineBackground(() => {
   browser.contextMenus.create({
@@ -38,6 +39,12 @@ export default defineBackground(() => {
        status: 'unavailable',
        error: 'No image URL was available.',
       });
+      browser.tabs.sendMessage(tab.id, {
+        action: 'validate-image-c2pa-result',
+        imageUrl,
+        status: 'unavailable',
+        error: 'No image URL was available for C2PA validation.',
+      });
       return;
     }
 
@@ -50,8 +57,35 @@ export default defineBackground(() => {
     void runGeoCamCheck(tab.id, imageUrl);
     void runExifCheck(tab.id, imageUrl);
     void runSynthIDCheck(tab.id, imageUrl);
+    void runC2PACheck(tab.id, imageUrl);
   });
 });
+
+// C2PA dispatched via registry.
+async function runC2PACheck(tabId: number, imageUrl: string) {
+  const result = await registry.validateWith('c2pa', imageUrl);
+
+  if (!result) {
+    // Just in case no validator named 'c2pa' was registered.
+    browser.tabs.sendMessage(tabId, {
+      action: 'validate-image-c2pa-result',
+      imageUrl,
+      status: 'unavailable',
+      error: 'C2PA validator is not registered.',
+    });
+    return;
+  }
+
+  // Translate registry's ValidationResult into wire format
+  // which the content script understands.
+  browser.tabs.sendMessage(tabId, {
+    action: 'validate-image-c2pa-result',
+    imageUrl,
+    status: result.status,
+    message: result.message,
+    error: result.error,
+  });
+}
 
 // GeoCam dispatched via registry.
 async function runGeoCamCheck(tabId: number, imageUrl: string) {
