@@ -38,17 +38,24 @@ class GeoCamAdapter implements Validator {
             // 3. Parse GeoCam response shape and translate to ValidationResult.
             const data = await apiResponse.json();
 
+            // GeoCam encodes the captured location inside the decoded message,
+            // e.g. "Captured at: ... | Location: 51.96921, 7.59613".
+            // Parse it out so the UI can map it.
+            const details = parseLocation(data.decoded_message);
+
             if (data.status === 'verified') {
                 return {
                     status: 'verified',
                     validatorName: this.name,
                     message: data.decoded_message,
+                    details,
                 };
             } else {
                 return {
                     status: 'not-verified',
                     validatorName: this.name,
                     message: data.decoded_message ?? 'GeoCam validation completed, but no decoded message was returned.',
+                    details,
                 };
             }
         } catch (error) {
@@ -66,6 +73,18 @@ class GeoCamAdapter implements Validator {
             error: reason,
         };
     }
+}
+
+// Extract { lat, lng } from a GeoCam decoded message, if present.
+// Expected fragment: "Location: <lat>, <lng>".
+function parseLocation(message: unknown): { lat: number; lng: number } | undefined {
+    if (typeof message !== 'string') return undefined;
+    const match = message.match(/Location:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/i);
+    if (!match) return undefined;
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return undefined;
+    return { lat, lng };
 }
 
 // Self-registration with the shared registry.

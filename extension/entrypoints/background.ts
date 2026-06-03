@@ -70,12 +70,15 @@ async function runGeoCamCheck(tabId: number, imageUrl: string) {
 
   // Translate registry's ValidationResult into wire format
   // which the content script understands.
+  const coords = result.details as { lat?: number; lng?: number } | undefined;
   browser.tabs.sendMessage(tabId, {
     action: 'validate-image-geocam-result',
     imageUrl,
     status: result.status,
     message: result.message,
     error: result.error,
+    lat: coords?.lat,
+    lng: coords?.lng,
   });
 }
 
@@ -87,14 +90,24 @@ type ExifSummary = {
   lens?: string;
   takenAt?: string;
   dimensions?: string;
-  exposure?: string;
   iso?: string;
+  aperture?: string;
+  shutterSpeed?: string;
+  focalLength?: string;
+  author?: string;
+  license?: string;
+  title?: string;
+  description?: string;
   gps?: string;
+  lat?: number;
+  lng?: number;
 };
 
 type ExifResult = {
   status: 'available' | 'none' | 'unavailable';
   exif?: ExifSummary;
+  fileSize?: string;
+  format?: string;
   error?: string;
 };
 
@@ -113,9 +126,10 @@ async function runExifCheck(tabId: number, imageUrl: string) {
     const blob = await imgRes.blob();
 
     const exif = await parseExif(blob);
+    const meta = { fileSize: formatBytes(blob.size), format: blobFormat(blob, imageUrl) };
     const result: ExifResult = exif
-      ? { status: 'available', exif }
-      : { status: 'none' };
+      ? { status: 'available', exif, ...meta }
+      : { status: 'none', ...meta };
 
     browser.tabs.sendMessage(tabId, {
       action: 'validate-image-exif-result',
@@ -146,17 +160,25 @@ async function parseExif(blob: Blob): Promise<ExifSummary | null> {
     if (!data) return null;
 
     const cameraParts = [data.Make, data.Model].filter(Boolean);
-    const exposureParts = [data.ExposureTime, data.FNumber ? `f/${data.FNumber}` : null].filter(Boolean);
-    const gps = formatGps(data.latitude, data.longitude, data.altitude);
+    const lat = typeof data.latitude === 'number' ? data.latitude : undefined;
+    const lng = typeof data.longitude === 'number' ? data.longitude : undefined;
 
     return {
       camera: cameraParts.length ? cameraParts.join(' ') : undefined,
       lens: data.LensModel ?? data.LensSpecification ?? undefined,
-      takenAt: data.DateTimeOriginal ?? data.CreateDate ?? data.ModifyDate ?? undefined,
+      takenAt: stringifyDate(data.DateTimeOriginal ?? data.CreateDate ?? data.ModifyDate),
       dimensions: data.ExifImageWidth && data.ExifImageHeight ? `${data.ExifImageWidth} × ${data.ExifImageHeight}` : undefined,
-      exposure: exposureParts.length ? exposureParts.join(' · ') : undefined,
       iso: data.ISO ? `ISO ${data.ISO}` : undefined,
-      gps,
+      aperture: data.FNumber ? `f/${data.FNumber}` : undefined,
+      shutterSpeed: formatShutter(data.ExposureTime),
+      focalLength: data.FocalLength ? `${Math.round(data.FocalLength)}mm` : undefined,
+      author: firstString(data.Artist, data.creator, data.Creator),
+      license: firstString(data.Copyright, data.rights, data.Rights, data.UsageTerms, data.WebStatement),
+      title: firstString(data.title, data.Title, data.headline, data.Headline, data.ObjectName),
+      description: firstString(data.ImageDescription, data.description, data.Description, data.Caption, data['Caption-Abstract']),
+      gps: formatGps(lat, lng, data.altitude),
+      lat,
+      lng,
     };
   } catch (error) {
     console.warn('[background] failed to parse EXIF:', error);
@@ -172,6 +194,45 @@ function formatGps(latitude?: number, longitude?: number, altitude?: number): st
   const altitudePart = typeof altitude === 'number' ? `, ${Math.abs(altitude).toFixed(0)} m` : '';
 
   return `${Math.abs(latitude).toFixed(5)}° ${latDirection}, ${Math.abs(longitude).toFixed(5)}° ${lonDirection}${altitudePart}`;
+}
+
+// Pick the first usable string from a set of candidate EXIF/XMP/IPTC fields.
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (Array.isArray(value) && value.length && typeof value[0] === 'string') return value[0];
+  }
+  return undefined;
+}
+
+function stringifyDate(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return value.toLocaleString();
+  if (typeof value === 'string') return value;
+  return undefined;
+}
+
+function formatShutter(exposureTime?: number): string | undefined {
+  if (typeof exposureTime !== 'number' || !exposureTime) return undefined;
+  if (exposureTime >= 1) return `${exposureTime}s`;
+  return `1/${Math.round(1 / exposureTime)}s`;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+// Best-effort image format label, e.g. "jpeg" or "png".
+function blobFormat(blob: Blob, imageUrl: string): string | undefined {
+  if (blob.type && blob.type.startsWith('image/')) {
+    return blob.type.slice('image/'.length).split(';')[0];
+  }
+  const match = imageUrl.split('?')[0].match(/\.([a-z0-9]{2,5})$/i);
+  return match ? match[1].toLowerCase() : undefined;
 }
 
 async function runSynthIDCheck(tabId: number, imageUrl: string) {

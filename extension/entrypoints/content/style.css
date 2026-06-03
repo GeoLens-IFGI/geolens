@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Tailwind v4 emits design tokens on :root. Inside a shadow root :root does not
+   match the host, so mirror the tokens onto :host as well. */
+@layer theme {
+  :host {
+    color-scheme: light;
+  }
+}
