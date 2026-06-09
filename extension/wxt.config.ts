@@ -13,7 +13,7 @@ export default defineConfig({
         host_permissions: ['<all_urls>'],
         web_accessible_resources: [
             {
-                resources: ['magnifying-lens-128.png'],
+                resources: ['lens32.png'],
                 matches: ['<all_urls>'],
             },
         ],

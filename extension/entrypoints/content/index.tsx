@@ -46,9 +46,9 @@ function injectImageHoverCursor() {
   cursorStyleInjected = true;
 
   const style = document.createElement('style');
-  const cursorUrl = browser.runtime.getURL('/magnifying-lens-128.png');
-  const hotspotX = 128 / 4;
-  const hotspotY = 128 / 4;
+  const cursorUrl = browser.runtime.getURL('/lens32.png');
+  const hotspotX = 32 / 4;
+  const hotspotY = 32 / 4;
   style.textContent = `
     img:hover {
       cursor: url("${cursorUrl}") ${hotspotX} ${hotspotY}, auto !important;
