@@ -29,6 +29,17 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 app.use(cors());
 
+// Python interpreter to spawn the detector with. macOS/Homebrew only ships
+// `python3`, while the Docker image symlinks `python` — default to `python3`
+// and let the container override via env.
+const PYTHON_BIN = process.env.PYTHON_BIN ?? 'python3';
+
+// ── Health ──────────────────────────────────────────────────────────────────
+
+app.get('/', (_req, res) => {
+  res.json({ message: 'GeoLens SynthID backend running' });
+});
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 app.post('/verify-image/', upload.single('file'), async (req, res) => {
@@ -61,7 +72,7 @@ async function checkSynthId(imagePath) {
   return new Promise((resolve) => {
     const scriptPath = join(__dirname, 'detect.py');
 
-    const python = spawn('python', [scriptPath, imagePath]);
+    const python = spawn(PYTHON_BIN, [scriptPath, imagePath]);
 
     let output = '';
     let errorOutput = '';
@@ -137,7 +148,7 @@ function mimeToExt(mime) {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
-const PORT = process.env.PORT ?? 8000;
+const PORT = process.env.PORT ?? 8008;
 app.listen(PORT, () => {
   console.log(`[GeoLens] backend listening on http://localhost:${PORT}`);
 });

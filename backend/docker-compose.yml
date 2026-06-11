@@ -1,0 +1,20 @@
+services:
+  synthid:
+    build:
+      context: .
+      # Build on the host network stack. Required on IPv6-only / 464XLAT setups:
+      # Docker's default bridge NATs to IPv4 with no upstream, so apt/git/pip in
+      # the build can't reach anything. Host networking uses the VM's CLAT.
+      network: host
+      # Pin the detector revision here if you need reproducible builds:
+      # args:
+      #   REVERSE_SYNTHID_REF: <commit-sha>
+    image: geolens-synthid
+    container_name: geolens-synthid
+    ports:
+      - "8008:8008"
+    environment:
+      # Change PORT to remap inside the container; keep the published port above
+      # in sync, and update the extension's fetch URL to match.
+      PORT: 8008
+    restart: unless-stopped
