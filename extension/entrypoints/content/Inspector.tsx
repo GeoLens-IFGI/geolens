@@ -18,6 +18,7 @@ import type { Inspection, MethodState } from './types';
 import { computeVerdict, VERDICT_STYLE } from './verdict';
 import { cn } from './cn';
 import { MapPanel } from './MapPanel';
+import { PanelErrorBoundary } from './PanelErrorBoundary';
 
 type PanelType = 'map' | 'exif' | 'verification' | 'info' | null;
 
@@ -74,7 +75,11 @@ export function Inspector({
             : exif?.lat != null && exif?.lng != null
               ? { lat: exif.lat, lng: exif.lng, source: 'EXIF' }
               : { lat: undefined, lng: undefined, source: undefined };
-        return <MapPanel lat={coords.lat} lng={coords.lng} source={coords.source} />;
+        return (
+          <PanelErrorBoundary label="Map panel">
+            <MapPanel lat={coords.lat} lng={coords.lng} source={coords.source} />
+          </PanelErrorBoundary>
+        );
       })()}
       {activePanel === 'exif' && <ExifPanel inspection={inspection} />}
       {activePanel === 'verification' && <VerificationPanel inspection={inspection} />}
