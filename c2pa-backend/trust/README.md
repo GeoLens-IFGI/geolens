@@ -12,15 +12,16 @@ profile is active (set by `C2PA_TRUST_PROFILE`).
 | `c2pa_itl.pem`             | `c2pa-prod+itl`              | C2PA Interim Trust List (frozen 2026-01-01, transitional)                                       |
 | `dev_anchor.pem`           | `dev`                        | Generated locally by `tests/fixtures/make_fixtures.py` for testing GeoCam-issued or local certs |
 
-None of the production PEM bundles are checked into this repository —
-they are environment-specific and may be updated independently of this
-codebase. The `dev_anchor.pem` file is generated automatically when you
-run the test fixtures script and is also gitignored.
+The three production PEM bundles (`c2pa_trust_list.pem`, `c2pa_tsa_trust_list.pem`,
+`c2pa_itl.pem`) are **committed** in this repository so a fresh clone works
+out of the box. Re-pin with `./fetch-trust.sh --update` when the live lists
+change upstream. The `dev_anchor.pem` file is generated locally by the test
+fixtures script and remains gitignored.
 
-## Reproducible setup
+## Updating or verifying the bundles
 
-Instead of vendoring the bundles, fetch them from their authoritative
-sources and verify the bytes against the pinned digests in `SHA256SUMS`:
+Fetch from authoritative sources and verify the bytes against the pinned
+digests in `SHA256SUMS`:
 
 ```bash
 cd c2pa-backend
@@ -36,8 +37,7 @@ cd c2pa-backend/trust && sha256sum -c SHA256SUMS
 
 ### Pinned sources
 
-Retrieved **2026-06-03**. SHA-256 digests are recorded in `trust/SHA256SUMS`
-(tracked in git); the bundles themselves are not.
+Retrieved **2026-06-03**. SHA-256 digests are recorded in `trust/SHA256SUMS`.
 
 | File                      | Frozen? | Source URL                                                                                                  | SHA-256        |
 | ------------------------- | ------- | ----------------------------------------------------------------------------------------------------------- | -------------- |
@@ -55,8 +55,8 @@ Retrieved **2026-06-03**. SHA-256 digests are recorded in `trust/SHA256SUMS`
   `fetch-trust.sh` **warns** and asks you to review and re-pin with
   `--update` rather than failing.
 
-This keeps the trust material (and the dev signing key) out of git history
-while giving anyone a deterministic way to recreate `trust/`.
+Dev signing keys remain out of git; production bundles are pinned here and
+can be refreshed with `fetch-trust.sh` when upstream lists change.
 
 If a profile is selected and one of its expected PEM files is missing:
 

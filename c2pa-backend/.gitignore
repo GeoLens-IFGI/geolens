@@ -18,10 +18,7 @@ trust/dev_anchor.pem
 trust/dev_signing.cert.pem
 trust/dev_signing.key.pem
 
-# Production trust list bundles are environment-specific; bring your own.
-trust/c2pa_trust_list.pem
-trust/c2pa_tsa_trust_list.pem
-trust/c2pa_itl.pem
+# Production trust lists (c2pa_*.pem) are tracked in git — see trust/README.md.
 
 .env
 .env.local
