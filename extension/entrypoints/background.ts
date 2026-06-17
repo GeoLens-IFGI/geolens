@@ -76,8 +76,18 @@ async function runC2PACheck(tabId: number, imageUrl: string) {
     return;
   }
 
-  // Translate registry's ValidationResult into wire format
-  // which the content script understands.
+  // Translate registry's ValidationResult into wire format which the content
+  // script understands. The adapter passes the backend `summary` through as
+  // `details`; pull out the structured fields the topic view fans out on
+  // (signer, signed date, location, AI-generation flag).
+  const summary = result.details as
+    | {
+        signer?: { common_name?: string };
+        signed_at?: string;
+        geo?: string;
+        is_ai_generated?: boolean;
+      }
+    | undefined;
   browser.tabs.sendMessage(tabId, {
     action: 'validate-image-c2pa-result',
     imageUrl,
@@ -85,6 +95,12 @@ async function runC2PACheck(tabId: number, imageUrl: string) {
     message: result.message,
     detail: result.detail,
     error: result.error,
+    credentials: {
+      signer: summary?.signer?.common_name,
+      signedAt: summary?.signed_at,
+      geo: summary?.geo,
+      aiGenerated: summary?.is_ai_generated ?? undefined,
+    },
   });
 }
 
@@ -105,7 +121,7 @@ async function runGeoCamCheck(tabId: number, imageUrl: string) {
 
   // Translate registry's ValidationResult into wire format
   // which the content script understands.
-  const coords = result.details as { lat?: number; lng?: number } | undefined;
+  const coords = result.details as { lat?: number; lng?: number; capturedAt?: string } | undefined;
   browser.tabs.sendMessage(tabId, {
     action: 'validate-image-geocam-result',
     imageUrl,
@@ -114,6 +130,7 @@ async function runGeoCamCheck(tabId: number, imageUrl: string) {
     error: result.error,
     lat: coords?.lat,
     lng: coords?.lng,
+    capturedAt: coords?.capturedAt,
   });
 }
 

@@ -22,6 +22,17 @@ export interface MethodState {
   // Coordinates a method may report (e.g. GeoCam's captured location).
   lat?: number;
   lng?: number;
+  // A verified capture time a method may report (GeoCam's signed timestamp).
+  capturedAt?: string;
+  // Structured fields a Content-Credentials method (C2PA) reports from the
+  // signed manifest. Used to fan out into the Date & Time, Location and AI
+  // Generated topics in addition to Integrity.
+  credentials?: {
+    signer?: string; // signer common name, e.g. "Google LLC"
+    signedAt?: string; // signing timestamp from the manifest
+    geo?: string; // "lat, lon" from the manifest's EXIF assertion
+    aiGenerated?: boolean; // manifest declares trainedAlgorithmicMedia
+  };
 }
 
 export type ExifStatus = 'loading' | 'available' | 'none' | 'unavailable';
@@ -49,10 +60,6 @@ export interface ExifState {
   exif?: ExifSummary;
   error?: string;
 }
-
-// The overall trust summary derived from the authenticity methods.
-// See CONTEXT.md → "Verdict".
-export type Verdict = 'verified' | 'suspicious' | 'partial' | 'unknown';
 
 // A single image the user is inspecting. Only one is active at a time.
 export interface Inspection {

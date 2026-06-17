@@ -38,10 +38,12 @@ class GeoCamAdapter implements Validator {
             // 3. Parse GeoCam response shape and translate to ValidationResult.
             const data = await apiResponse.json();
 
-            // GeoCam encodes the captured location inside the decoded message,
-            // e.g. "Captured at: ... | Location: 51.96921, 7.59613".
-            // Parse it out so the UI can map it.
-            const details = parseLocation(data.decoded_message);
+            // GeoCam encodes the captured location and time inside the decoded
+            // message, e.g. "Captured at: 2024-06-12 14:31 | Location: 51.96921,
+            // 7.59613". Parse both out so the UI can map and date the image.
+            const location = parseLocation(data.decoded_message);
+            const capturedAt = parseCapturedAt(data.decoded_message);
+            const details = { lat: location?.lat, lng: location?.lng, capturedAt };
 
             if (data.status === 'verified') {
                 return {
@@ -85,6 +87,15 @@ function parseLocation(message: unknown): { lat: number; lng: number } | undefin
     const lng = Number(match[2]);
     if (Number.isNaN(lat) || Number.isNaN(lng)) return undefined;
     return { lat, lng };
+}
+
+// Extract the capture time from a GeoCam decoded message, if present.
+// Expected fragment: "Captured at: <time>" up to the next "|" or end of string.
+function parseCapturedAt(message: unknown): string | undefined {
+    if (typeof message !== 'string') return undefined;
+    const match = message.match(/Captured at:\s*([^|]+?)\s*(?:\||$)/i);
+    const value = match?.[1]?.trim();
+    return value || undefined;
 }
 
 // Self-registration with the shared registry.

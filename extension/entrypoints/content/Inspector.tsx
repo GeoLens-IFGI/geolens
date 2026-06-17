@@ -15,7 +15,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { Inspection, MethodState } from './types';
-import { computeVerdict, VERDICT_STYLE } from './verdict';
+import { deriveTopics, borderLight, LIGHT_RGB } from './topics';
+import { TopicCard } from './TopicCard';
 import { cn } from './cn';
 import { MapPanel } from './MapPanel';
 import { PanelErrorBoundary } from './PanelErrorBoundary';
@@ -42,8 +43,8 @@ export function Inspector({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
-  const verdict = computeVerdict(inspection.geocam, inspection.synthid);
-  const { rgb } = VERDICT_STYLE[verdict];
+  // The image border reflects the worst topic colour (see topics.ts).
+  const rgb = LIGHT_RGB[borderLight(deriveTopics(inspection))];
   const borderColor = `rgb(${rgb})`;
 
   // Icons sit on the opposite side from the image.
@@ -310,70 +311,25 @@ function StatusBadge({
 // ── Verification panel ───────────────────────────────────────────────────────
 
 function VerificationPanel({ inspection }: { inspection: Inspection }) {
-  const verdict = computeVerdict(inspection.geocam, inspection.synthid);
-  const { label, rgb } = VERDICT_STYLE[verdict];
+  const topics = deriveTopics(inspection);
 
   return (
     <div>
       <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-gray-900">
         <ShieldCheck className="w-5 h-5" />
-        Verification Result
+        Verification
       </h3>
-
-      <div
-        className="rounded-lg p-5 border-2 mb-5"
-        style={{ borderColor: `rgb(${rgb})`, backgroundColor: `rgba(${rgb}, 0.12)` }}
-      >
-        <span className="text-2xl font-bold" style={{ color: `rgb(${rgb})` }}>
-          {label}
-        </span>
-        <p className="text-gray-700 mt-1 text-sm">
-          Overall verdict from the authenticity checks below.
-        </p>
-      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        What we found, grouped by topic. Open a card to see each check.
+      </p>
 
       <div className="space-y-3">
-        <MethodDetail label="GeoCam" state={inspection.geocam} />
-        <MethodDetail label="SynthID" state={inspection.synthid} />
-        <MethodDetail label="C2PA" state={inspection.c2pa} />
+        {topics.map((topic) => (
+          <TopicCard key={topic.id} topic={topic} />
+        ))}
       </div>
     </div>
   );
-}
-
-function MethodDetail({ label, state }: { label: string; state: MethodState }) {
-  const text =
-    state.status === 'loading'
-      ? 'Checking…'
-      : state.message || state.error || statusFallback(state.status);
-
-  return (
-    <div className="rounded-lg border border-gray-200 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-semibold text-gray-900">{label}</span>
-        <StatusDot status={state.status} />
-      </div>
-      <p className="text-sm text-gray-600 mt-1 leading-snug">{text}</p>
-      <DetailDisclosure state={state} tone="light" />
-    </div>
-  );
-}
-
-function statusFallback(status: MethodState['status']) {
-  if (status === 'verified') return 'Passed.';
-  if (status === 'verified-legacy') return 'Trusted via the legacy Interim Trust List.';
-  if (status === 'caution') return 'Signed, but not fully vetted.';
-  if (status === 'not-verified') return 'Flagged.';
-  return 'Could not be checked.';
-}
-
-function StatusDot({ status }: { status: MethodState['status'] }) {
-  if (status === 'loading') return <Loader2 className="w-4 h-4 animate-spin text-gray-400" />;
-  if (status === 'verified') return <CheckCircle2 className="w-5 h-5 text-green-600" />;
-  if (status === 'verified-legacy') return <BadgeCheck className="w-5 h-5 text-blue-600" />;
-  if (status === 'caution') return <AlertTriangle className="w-5 h-5 text-amber-500" />;
-  if (status === 'not-verified') return <XCircle className="w-5 h-5 text-red-600" />;
-  return <MinusCircle className="w-5 h-5 text-gray-400" />;
 }
 
 // Progressive disclosure: a "Why?" toggle that reveals the technical reason

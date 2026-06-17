@@ -102,6 +102,8 @@ function patchMethod(key: 'geocam' | 'synthid' | 'c2pa', message: any) {
     error: message.error,
     lat: message.lat,
     lng: message.lng,
+    capturedAt: message.capturedAt,
+    credentials: message.credentials,
   };
   updateInspection({ [key]: next });
 }
