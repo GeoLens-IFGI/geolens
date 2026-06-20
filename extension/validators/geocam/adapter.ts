@@ -32,7 +32,7 @@ class GeoCamAdapter implements Validator {
             });
 
             if (!apiResponse.ok) {
-                return this.unavailable('GeoCam service returned HTTP ${apiResponse.status}.');
+                return this.unavailable(`GeoCam service returned HTTP ${apiResponse.status}.`);
             }
 
             // 3. Parse GeoCam response shape and translate to ValidationResult.

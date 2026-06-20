@@ -1,29 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import {
-  X,
-  MapPin,
-  FileText,
-  ShieldCheck,
-  Info,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  MinusCircle,
-  AlertTriangle,
-  BadgeCheck,
-  ChevronRight,
-  ChevronDown,
-} from 'lucide-react';
-import type { Inspection, MethodState } from './types';
-import { deriveTopics, borderLight, LIGHT_RGB } from './topics';
-import { TopicCard } from './TopicCard';
+import { useEffect, useMemo, useState } from 'react';
+import { X, MapPin, ExternalLink, HelpCircle, Loader2 } from 'lucide-react';
+import type { Inspection } from './types';
+import { deriveTopics, LIGHT_RGB, type TopicId } from './topics';
 import { cn } from './cn';
+import { TopicCard } from './TopicCard';
 import { MapPanel } from './MapPanel';
+import { GuideModal } from './GuideModal';
 import { PanelErrorBoundary } from './PanelErrorBoundary';
 
-type PanelType = 'map' | 'exif' | 'verification' | 'info' | null;
-
 const Z = 2147483647;
+const REPO_URL = 'https://github.com/GeoLens-IFGI/geolens';
 
 export function Inspector({
   inspection,
@@ -32,465 +18,157 @@ export function Inspector({
   inspection: Inspection;
   onClose: () => void;
 }) {
-  const [activePanel, setActivePanel] = useState<PanelType>(null);
-  const [isFlipped, setIsFlipped] = useState(false);
+  const [selectedId, setSelectedId] = useState<TopicId | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  // Stamp the moment the user opened the inspector — shown as "Verified …".
+  const [openedAt] = useState(() => new Date());
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !guideOpen) onClose();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  }, [onClose, guideOpen]);
 
-  // The image border reflects the worst topic colour (see topics.ts).
-  const rgb = LIGHT_RGB[borderLight(deriveTopics(inspection))];
-  const borderColor = `rgb(${rgb})`;
+  const topics = deriveTopics(inspection);
+  const selected = topics.find((t) => t.id === selectedId) ?? null;
+  const anyLoading = topics.some((t) => t.loading);
 
-  // Icons sit on the opposite side from the image.
-  const iconsOnLeft = inspection.position === 'right';
+  // Frame colour follows the selected category; grey when nothing is selected.
+  const frameLight = selected ? selected.light : 'gray';
+  const rgb = LIGHT_RGB[frameLight];
 
-  const handleIconClick = (panel: PanelType) => {
-    setActivePanel((cur) => (cur === panel ? null : panel));
-    setIsFlipped(false);
-  };
-
-  const iconRail = (
-    <div className="flex flex-col gap-4">
-      <IconButton icon={MapPin} label="Map" active={activePanel === 'map'} onClick={() => handleIconClick('map')} position={iconsOnLeft ? 'left' : 'right'} />
-      <IconButton icon={FileText} label="EXIF" active={activePanel === 'exif'} onClick={() => handleIconClick('exif')} position={iconsOnLeft ? 'left' : 'right'} />
-      <IconButton icon={ShieldCheck} label="Verification" active={activePanel === 'verification'} onClick={() => handleIconClick('verification')} position={iconsOnLeft ? 'left' : 'right'} />
-      <IconButton icon={Info} label="Info" active={activePanel === 'info'} onClick={() => handleIconClick('info')} position={iconsOnLeft ? 'left' : 'right'} />
-    </div>
+  // Coordinates for the map: GeoLens's signed location is the verified (green)
+  // pin; EXIF GPS is the general (orange) pin.
+  const geo = inspection.geocam;
+  const exif = inspection.exif.exif;
+  const verified = useMemo(
+    () => (geo.lat != null && geo.lng != null ? { lat: geo.lat, lng: geo.lng } : undefined),
+    [geo.lat, geo.lng],
+  );
+  const general = useMemo(
+    () => (exif?.lat != null && exif?.lng != null ? { lat: exif.lat, lng: exif.lng } : undefined),
+    [exif?.lat, exif?.lng],
   );
 
-  const panel = activePanel && (
-    <div className="w-[450px] max-w-[90vw] bg-white/95 backdrop-blur-md rounded-xl p-6 shadow-2xl border border-gray-200 max-h-[80vh] overflow-auto">
-      {activePanel === 'map' && (() => {
-        // Prefer GeoCam's signed location; fall back to EXIF GPS.
-        const geo = inspection.geocam;
-        const exif = inspection.exif.exif;
-        const coords =
-          geo.lat != null && geo.lng != null
-            ? { lat: geo.lat, lng: geo.lng, source: 'GeoCam' }
-            : exif?.lat != null && exif?.lng != null
-              ? { lat: exif.lat, lng: exif.lng, source: 'EXIF' }
-              : { lat: undefined, lng: undefined, source: undefined };
-        return (
-          <PanelErrorBoundary label="Map panel">
-            <MapPanel lat={coords.lat} lng={coords.lng} source={coords.source} />
-          </PanelErrorBoundary>
-        );
-      })()}
-      {activePanel === 'exif' && <ExifPanel inspection={inspection} />}
-      {activePanel === 'verification' && <VerificationPanel inspection={inspection} />}
-      {activePanel === 'info' && <InfoPanel inspection={inspection} />}
-    </div>
-  );
+  const hasLocation = !!(verified || general);
+
+  const toggleCard = (id: TopicId) => setSelectedId((cur) => (cur === id ? null : id));
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       style={{ zIndex: Z }}
       onClick={onClose}
     >
-      <button
-        className="absolute top-4 right-4 z-10 rounded-full p-3 bg-black/60 hover:bg-black/80 text-white transition-colors backdrop-blur-sm"
-        aria-label="Close"
-        onClick={onClose}
+      <div
+        className="relative flex max-h-[92vh] w-[920px] max-w-[95vw] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
-        <X className="w-6 h-6" />
-      </button>
+        <button
+          className="absolute right-3 top-3 z-20 rounded-full bg-white/80 p-1.5 text-gray-400 shadow-sm backdrop-blur-sm transition-colors hover:bg-gray-100 hover:text-gray-700"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <X className="h-5 w-5" />
+        </button>
 
-      <div className="flex items-center gap-6 max-w-7xl mx-auto" onClick={(e) => e.stopPropagation()}>
-        {iconsOnLeft && (
-          <>
-            {iconRail}
-            {panel}
-          </>
-        )}
-
-        {/* Image with verdict border + 3D flip */}
-        <div className="flex-shrink-0">
-          <div
-            className="relative cursor-pointer group"
-            style={{ perspective: '1000px' }}
-            onClick={() => {
-              setIsFlipped((f) => !f);
-              setActivePanel(null);
-            }}
-          >
+        {/* ── Body: image (left) + results (right) ──────────────────────────── */}
+        <div className="flex min-h-0 flex-1">
+          {/* Image with dynamic frame */}
+          <div className="flex w-[42%] flex-shrink-0 items-center justify-center bg-gray-50 p-6">
             <div
-              className="relative transition-transform duration-700"
+              className="overflow-hidden rounded-xl transition-all duration-300"
               style={{
-                transformStyle: 'preserve-3d',
-                transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                border: `10px solid rgb(${rgb})`,
+                boxShadow: `0 0 0 1px rgba(${rgb}, 0.4), 0 0 32px rgba(${rgb}, 0.45), 0 0 64px rgba(${rgb}, 0.2)`,
               }}
             >
-              {/* Front — the image */}
-              <div
-                className="relative rounded-lg overflow-hidden"
-                style={{
-                  backfaceVisibility: 'hidden',
-                  border: `16px solid ${borderColor}`,
-                  boxShadow: `0 0 40px rgba(${rgb}, 0.38), 0 0 80px rgba(${rgb}, 0.18)`,
-                }}
-              >
-                <img
-                  src={inspection.imageUrl}
-                  alt={inspection.imageAlt}
-                  className="w-[500px] h-[500px] max-w-[70vw] max-h-[70vh] object-cover"
-                />
-
-                {/* Page curl (dog-ear) hint */}
-                {!isFlipped && (
-                  <div className="absolute top-0 right-0 w-0 h-0 border-l-[60px] border-l-transparent border-t-[60px] border-t-gray-700/80 transition-opacity group-hover:opacity-100 opacity-70">
-                    <div className="absolute -top-[58px] -right-[2px] w-0 h-0 border-r-[58px] border-r-transparent border-b-[58px] border-b-gray-500/40" />
-                  </div>
-                )}
-              </div>
-
-              {/* Back — per-method status */}
-              <div
-                className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-8 overflow-auto"
-                style={{
-                  backfaceVisibility: 'hidden',
-                  transform: 'rotateY(180deg)',
-                  border: `16px solid ${borderColor}`,
-                  boxShadow: `0 0 40px rgba(${rgb}, 0.38)`,
-                }}
-              >
-                <h3 className="text-white font-semibold mb-6 text-2xl">Backend Verification</h3>
-                <div className="space-y-5">
-                  <BackendMethodRow label="GeoCam" state={inspection.geocam} passLabel="Verified" failLabel="Not verified" />
-                  <BackendMethodRow label="SynthID" state={inspection.synthid} passLabel="No watermark" failLabel="Watermark found" />
-                  <BackendMethodRow label="C2PA" state={inspection.c2pa} passLabel="Verified" failLabel="Not verified" cautionLabel="Unknown signer" legacyLabel="Legacy trust" />
-                </div>
-              </div>
+              <img
+                src={inspection.imageUrl}
+                alt={inspection.imageAlt}
+                className="block max-h-[64vh] w-full object-contain"
+              />
             </div>
+          </div>
+
+          {/* Results panel — extra top padding keeps the first card clear of the close button. */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-y-auto px-5 pb-4 pt-12">
+            <div className="space-y-2.5">
+              {topics.map((topic) => (
+                <TopicCard
+                  key={topic.id}
+                  topic={topic}
+                  selected={selectedId === topic.id}
+                  onToggle={() => toggleCard(topic.id)}
+                />
+              ))}
+            </div>
+
+            {/* Show / hide map — disabled until a location is found. */}
+            <button
+              type="button"
+              onClick={() => hasLocation && setMapOpen((o) => !o)}
+              disabled={!hasLocation}
+              title={hasLocation ? undefined : 'No location data found for this image'}
+              className={cn(
+                'mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-semibold shadow-sm transition-[filter]',
+                hasLocation
+                  ? 'bg-slate-800 text-white hover:brightness-125'
+                  : 'cursor-not-allowed bg-gray-200 text-gray-400',
+              )}
+            >
+              <MapPin className="h-4 w-4" />
+              {!hasLocation ? 'No location found' : mapOpen ? 'Hide Map' : 'Show Map'}
+            </button>
+
+            {mapOpen && hasLocation && (
+              <div className="mt-3">
+                <PanelErrorBoundary label="Map panel">
+                  <MapPanel verified={verified} general={general} />
+                </PanelErrorBoundary>
+              </div>
+            )}
+
+            {/* Verification timestamp */}
+            <p className="mt-4 flex items-center gap-1.5 text-xs text-gray-400">
+              {anyLoading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Verifying… please wait
+                </>
+              ) : (
+                <>Verified {openedAt.toLocaleString()}</>
+              )}
+            </p>
           </div>
         </div>
 
-        {!iconsOnLeft && (
-          <>
-            {panel}
-            {iconRail}
-          </>
-        )}
+        {/* ── Footer ────────────────────────────────────────────────────────── */}
+        <footer className="flex items-center justify-between border-t border-gray-200 px-5 py-2.5 text-xs text-gray-400">
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 transition-colors hover:text-gray-600 hover:underline"
+          >
+            Learn more <ExternalLink className="h-3 w-3" />
+          </a>
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            className="inline-flex items-center gap-1 transition-colors hover:text-gray-600"
+            aria-label="Open guide"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            Guide
+          </button>
+        </footer>
       </div>
-    </div>
-  );
-}
 
-// ── Icon rail button ────────────────────────────────────────────────────────
-
-interface IconButtonProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  position: 'left' | 'right';
-}
-
-function IconButton({ icon: Icon, label, active, onClick, position }: IconButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-3 group transition-transform',
-        position === 'right' ? 'flex-row' : 'flex-row-reverse',
-        active && 'scale-105',
-      )}
-      title={label}
-    >
-      <div
-        className={cn(
-          'w-16 h-16 rounded-full bg-gray-600 hover:bg-gray-500 text-white flex items-center justify-center shadow-lg hover:shadow-2xl transition-all backdrop-blur-sm',
-          active && 'ring-4 ring-white',
-        )}
-      >
-        <Icon className="w-8 h-8" />
-      </div>
-      <span className="text-sm font-medium text-white drop-shadow-lg whitespace-nowrap">{label}</span>
-    </button>
-  );
-}
-
-// ── Flip-side method row ─────────────────────────────────────────────────────
-
-function BackendMethodRow({
-  label,
-  state,
-  passLabel,
-  failLabel,
-  cautionLabel = 'Caution',
-  legacyLabel = 'Verified (legacy)',
-}: {
-  label: string;
-  state: MethodState;
-  passLabel: string;
-  failLabel: string;
-  cautionLabel?: string;
-  legacyLabel?: string;
-}) {
-  return (
-    <div className="bg-white/10 rounded-lg p-4">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-white font-semibold text-lg">{label}</span>
-        <StatusBadge state={state} passLabel={passLabel} failLabel={failLabel} cautionLabel={cautionLabel} legacyLabel={legacyLabel} />
-      </div>
-      {(state.message || state.error) && state.status !== 'loading' && (
-        <p className="text-gray-300 text-sm mt-2 leading-snug">{state.message || state.error}</p>
-      )}
-      <DetailDisclosure state={state} tone="dark" />
-    </div>
-  );
-}
-
-function StatusBadge({
-  state,
-  passLabel,
-  failLabel,
-  cautionLabel,
-  legacyLabel,
-}: {
-  state: MethodState;
-  passLabel: string;
-  failLabel: string;
-  cautionLabel: string;
-  legacyLabel: string;
-}) {
-  if (state.status === 'loading') {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-gray-300 text-sm font-medium">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Checking…
-      </span>
-    );
-  }
-  if (state.status === 'verified') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-500/20 text-green-300 text-sm font-semibold">
-        <CheckCircle2 className="w-4 h-4" />
-        {passLabel}
-      </span>
-    );
-  }
-  if (state.status === 'verified-legacy') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-sm font-semibold">
-        <BadgeCheck className="w-4 h-4" />
-        {legacyLabel}
-      </span>
-    );
-  }
-  if (state.status === 'caution') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-sm font-semibold">
-        <AlertTriangle className="w-4 h-4" />
-        {cautionLabel}
-      </span>
-    );
-  }
-  if (state.status === 'not-verified') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-red-300 text-sm font-semibold">
-        <XCircle className="w-4 h-4" />
-        {failLabel}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-500/20 text-gray-300 text-sm font-semibold">
-      <MinusCircle className="w-4 h-4" />
-      Unavailable
-    </span>
-  );
-}
-
-// ── Verification panel ───────────────────────────────────────────────────────
-
-function VerificationPanel({ inspection }: { inspection: Inspection }) {
-  const topics = deriveTopics(inspection);
-
-  return (
-    <div>
-      <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-gray-900">
-        <ShieldCheck className="w-5 h-5" />
-        Verification
-      </h3>
-      <p className="text-sm text-gray-600 mb-4">
-        What we found, grouped by topic. Open a card to see each check.
-      </p>
-
-      <div className="space-y-3">
-        {topics.map((topic) => (
-          <TopicCard key={topic.id} topic={topic} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Progressive disclosure: a "Why?" toggle that reveals the technical reason
-// behind a caution/failure. Only renders when there's a detail to show and the
-// state warrants it; methods that never set `detail` (GeoCam, SynthID) render
-// nothing, leaving their boxes unchanged.
-function DetailDisclosure({
-  state,
-  tone,
-}: {
-  state: MethodState;
-  tone: 'dark' | 'light';
-}) {
-  const [open, setOpen] = useState(false);
-
-  const eligible = state.status === 'caution' || state.status === 'not-verified';
-  if (!eligible || !state.detail) return null;
-
-  const Chevron = open ? ChevronDown : ChevronRight;
-
-  return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={(e) => {
-          // Stop the click from bubbling to the card's flip handler.
-          e.stopPropagation();
-          setOpen((o) => !o);
-        }}
-        className={cn(
-          'inline-flex items-center gap-1 text-xs font-medium transition-colors',
-          tone === 'dark'
-            ? 'text-gray-400 hover:text-gray-200'
-            : 'text-gray-500 hover:text-gray-800',
-        )}
-      >
-        <Chevron className="w-3.5 h-3.5" />
-        {open ? 'Hide details' : 'Why?'}
-      </button>
-      {open && (
-        <pre
-          className={cn(
-            'mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-snug',
-            tone === 'dark' ? 'text-gray-400' : 'text-gray-600',
-          )}
-        >
-          {state.detail}
-        </pre>
-      )}
-    </div>
-  );
-}
-
-// ── EXIF panel ───────────────────────────────────────────────────────────────
-
-function ExifPanel({ inspection }: { inspection: Inspection }) {
-  const { status, exif, error } = inspection.exif;
-
-  const body = () => {
-    if (status === 'loading') return <Empty icon={FileText} text="Decoding EXIF metadata…" spin />;
-    if (status === 'unavailable') return <Empty icon={FileText} text={error ?? 'EXIF decoding is unavailable.'} />;
-    if (status === 'none' || !exif) return <Empty icon={FileText} text="No EXIF metadata found." />;
-
-    const rows: Array<[string, string | undefined]> = [
-      ['Camera', exif.camera],
-      ['Lens', exif.lens],
-      ['Date Taken', exif.takenAt],
-      ['ISO', exif.iso],
-      ['Aperture', exif.aperture],
-      ['Shutter Speed', exif.shutterSpeed],
-      ['Focal Length', exif.focalLength],
-      ['Title', exif.title],
-      ['Description', exif.description],
-      ['Photographer', exif.author],
-      ['License', exif.license],
-      ['GPS', exif.gps],
-    ];
-    const present = rows.filter(([, v]) => !!v) as Array<[string, string]>;
-    if (!present.length) return <Empty icon={FileText} text="No EXIF metadata found." />;
-
-    return (
-      <div className="space-y-1">
-        {present.map(([label, value]) => (
-          <DetailRow key={label} label={label} value={value} />
-        ))}
-      </div>
-    );
-  };
-
-  return (
-    <div>
-      <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-gray-900">
-        <FileText className="w-5 h-5" />
-        EXIF Metadata
-      </h3>
-      {body()}
-    </div>
-  );
-}
-
-// ── Info panel ───────────────────────────────────────────────────────────────
-
-function InfoPanel({ inspection }: { inspection: Inspection }) {
-  const { naturalWidth, naturalHeight, format, fileSize } = inspection;
-  const rows: Array<[string, string | undefined]> = [
-    [
-      'Dimensions',
-      naturalWidth && naturalHeight ? `${naturalWidth} × ${naturalHeight} px` : undefined,
-    ],
-    [
-      'Aspect Ratio',
-      naturalWidth && naturalHeight ? (naturalWidth / naturalHeight).toFixed(2) : undefined,
-    ],
-    ['Format', format ? format.toUpperCase() : undefined],
-    ['File Size', fileSize],
-  ];
-  const present = rows.filter(([, v]) => !!v) as Array<[string, string]>;
-
-  return (
-    <div>
-      <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-gray-900">
-        <Info className="w-5 h-5" />
-        Image Information
-      </h3>
-      {present.length ? (
-        <div className="space-y-1">
-          {present.map(([label, value]) => (
-            <DetailRow key={label} label={label} value={value} />
-          ))}
-        </div>
-      ) : (
-        <Empty icon={Info} text="No image information available." />
-      )}
-    </div>
-  );
-}
-
-// ── Shared bits ──────────────────────────────────────────────────────────────
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between items-start gap-4 py-2 border-b border-gray-200 last:border-0">
-      <span className="text-sm text-gray-600 font-medium shrink-0">{label}</span>
-      <span className="text-sm text-gray-900 text-right break-words">{value}</span>
-    </div>
-  );
-}
-
-function Empty({
-  icon: Icon,
-  text,
-  spin,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  text: string;
-  spin?: boolean;
-}) {
-  return (
-    <div className="text-center py-12">
-      <Icon className={cn('w-16 h-16 mx-auto mb-4 text-gray-300', spin && 'animate-spin')} />
-      <p className="text-gray-600">{text}</p>
+      {guideOpen && <GuideModal onClose={() => setGuideOpen(false)} />}
     </div>
   );
 }

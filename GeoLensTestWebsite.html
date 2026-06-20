@@ -2,90 +2,662 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>My Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Frame — your feed</title>
     <style>
+        :root {
+            --bg: #f0f2f5;
+            --card: #ffffff;
+            --border: #e4e6eb;
+            --text: #1c1e21;
+            --muted: #65676b;
+            --accent: #6d28d9;
+            --accent-soft: #ede9fe;
+            --radius: 14px;
+            --shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+        }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
         body {
-            font-family: Arial, sans-serif;
-            margin: 2rem;
-            line-height: 1.5;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.45;
         }
 
-        /* ----- Header ----- */
-        header {
-            text-align: center;
-            margin-bottom: 2rem;
+        /* ---------- Top nav ---------- */
+        .topbar {
+            position: sticky; top: 0; z-index: 50;
+            background: rgba(255,255,255,.85);
+            backdrop-filter: saturate(180%) blur(12px);
+            border-bottom: 1px solid var(--border);
         }
-        header h1 {
-            font-size: 2.5rem;
-            margin: 0;
+        .topbar-inner {
+            max-width: 980px; margin: 0 auto;
+            display: flex; align-items: center; gap: 1rem;
+            padding: .65rem 1rem;
         }
-        header p {
-            font-size: 1.2rem;
-            color: #555;
+        .brand {
+            font-weight: 800; font-size: 1.4rem; letter-spacing: -.03em;
+            background: linear-gradient(120deg, #6d28d9, #db2777);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            display: flex; align-items: center; gap: .45rem;
+        }
+        .brand .dot { width: 20px; height: 20px; border-radius: 7px;
+            background: linear-gradient(120deg, #6d28d9, #db2777); display: inline-block; }
+        .search {
+            flex: 1; max-width: 320px;
+            background: var(--bg); border: 1px solid transparent; border-radius: 999px;
+            padding: .5rem .9rem; color: var(--muted); font-size: .9rem;
+        }
+        .nav-actions { margin-left: auto; display: flex; align-items: center; gap: .4rem; }
+        .lang-toggle { display: flex; border: 1px solid var(--border); border-radius: 999px;
+            overflow: hidden; margin-right: .3rem; }
+        .lang-toggle button { border: none; background: none; cursor: pointer;
+            padding: .35rem .7rem; font-size: .78rem; font-weight: 700; color: var(--muted); }
+        .lang-toggle button.active { background: var(--accent); color: #fff; }
+        .icon-btn {
+            width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer;
+            background: var(--bg); display: grid; place-items: center; font-size: 1.05rem;
+        }
+        .me-avatar { width: 34px; height: 34px; border-radius: 50%;
+            background: linear-gradient(135deg,#f59e0b,#ef4444); }
+
+        /* ---------- Layout ---------- */
+        .wrap {
+            max-width: 980px; margin: 1.25rem auto; padding: 0 1rem;
+            display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 1.5rem;
+            align-items: start;
+        }
+        .feed { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+
+        /* ---------- Composer ---------- */
+        .composer {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); box-shadow: var(--shadow);
+            padding: .9rem 1rem; display: flex; align-items: center; gap: .75rem;
+        }
+        .composer .me-avatar { width: 42px; height: 42px; }
+        .composer input {
+            flex: 1; background: var(--bg); border: none; border-radius: 999px;
+            padding: .7rem 1rem; font-size: .95rem; color: var(--muted);
         }
 
-        /* ----- Image gallery ----- */
-        .gallery {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1.5rem;
-            justify-content: center;
+        /* ---------- Post card ---------- */
+        .post {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
         }
-        .gallery figure {
-            margin: 0;
-            max-width: 400px;      /* limit width, adjust as you like */
+        .post-head { display: flex; align-items: center; gap: .7rem; padding: .85rem 1rem; }
+        .avatar { width: 44px; height: 44px; border-radius: 50%; flex: none;
+            display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 1rem; }
+        .post-meta { display: flex; flex-direction: column; min-width: 0; }
+        .post-name { font-weight: 600; font-size: .95rem; }
+        .post-name .badge { color: var(--accent); margin-left: .15rem; }
+        .post-sub { color: var(--muted); font-size: .8rem; display: flex; gap: .35rem; align-items: center; }
+        .post-sub a { color: var(--muted); text-decoration: none; }
+        .more { margin-left: auto; color: var(--muted); cursor: pointer; font-size: 1.3rem;
+            line-height: 1; padding: 0 .3rem; }
+
+        .post-text { padding: 0 1rem .85rem; font-size: .96rem; white-space: pre-wrap; }
+        .post-text .tag { color: var(--accent); }
+
+        .post-media { background: #000; line-height: 0; }
+        .post-media img { width: 100%; height: auto; display: block; max-height: 640px; object-fit: cover; }
+
+        .post-stats {
+            display: flex; align-items: center; gap: .4rem;
+            padding: .6rem 1rem .2rem; color: var(--muted); font-size: .82rem;
         }
-        .gallery img {
-            width: 100%;
-            height: auto;
-            display: block;
-            border-radius: 4px;
+        .react-bubble { display: inline-grid; place-items: center; width: 18px; height: 18px;
+            border-radius: 50%; font-size: .65rem; background: linear-gradient(135deg,#f43f5e,#db2777); }
+        .react-bubble.like { background: linear-gradient(135deg,#3b82f6,#2563eb); }
+
+        .post-actions { display: flex; border-top: 1px solid var(--border); margin: .55rem 0 0; }
+        .post-actions button {
+            flex: 1; border: none; background: none; cursor: pointer;
+            padding: .6rem; font-size: .88rem; font-weight: 600; color: var(--muted);
+            display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
         }
-        .gallery figcaption {
-            text-align: center;
-            margin-top: 0.5rem;
-            font-style: italic;
-            color: #333;
+        .post-actions button:hover { background: var(--bg); }
+
+        .comments { border-top: 1px solid var(--border); padding: .7rem 1rem .9rem;
+            display: flex; flex-direction: column; gap: .6rem; }
+        .comment { display: flex; gap: .55rem; align-items: flex-start; }
+        .comment .avatar { width: 30px; height: 30px; font-size: .75rem; }
+        .comment-body { background: var(--bg); border-radius: 16px; padding: .45rem .75rem; font-size: .88rem; }
+        .comment-body b { font-size: .85rem; }
+        .comment-actions { font-size: .72rem; color: var(--muted); padding-left: .75rem; margin-top: .15rem; }
+        .comment-actions span { margin-right: .8rem; cursor: pointer; }
+
+        /* ---------- Sidebar ---------- */
+        .side { display: flex; flex-direction: column; gap: 1.25rem; position: sticky; top: 70px; }
+        .panel {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem;
+        }
+        .panel h3 { margin: 0 0 .75rem; font-size: .8rem; text-transform: uppercase;
+            letter-spacing: .06em; color: var(--muted); }
+        .demo-note { border: 1px solid var(--accent-soft); background: linear-gradient(180deg,#faf5ff,#fff); }
+        .demo-note p { margin: .35rem 0 0; font-size: .85rem; color: var(--muted); }
+        .demo-note .lead { color: var(--text); font-weight: 600; font-size: .92rem;
+            display: flex; align-items: center; gap: .4rem; }
+        .suggest { display: flex; align-items: center; gap: .6rem; padding: .4rem 0; }
+        .suggest .avatar { width: 36px; height: 36px; font-size: .8rem; }
+        .suggest .s-name { font-size: .88rem; font-weight: 600; }
+        .suggest .s-sub { font-size: .76rem; color: var(--muted); }
+        .suggest .follow { margin-left: auto; border: 1px solid var(--accent); color: var(--accent);
+            background: none; border-radius: 999px; padding: .3rem .8rem; font-size: .8rem;
+            font-weight: 600; cursor: pointer; }
+        .tags-row { display: flex; flex-wrap: wrap; gap: .4rem; }
+        .chip { background: var(--accent-soft); color: var(--accent); border-radius: 999px;
+            padding: .3rem .7rem; font-size: .8rem; font-weight: 600; }
+        .side-foot { font-size: .74rem; color: var(--muted); padding: 0 .25rem; line-height: 1.6; }
+
+        @media (max-width: 860px) {
+            .wrap { grid-template-columns: 1fr; }
+            .side { position: static; order: 2; }
+            .search { display: none; }
         }
     </style>
 </head>
 <body>
 
-<header>
-    <!-- Write your headline and sub‑header here -->
-    <h1>GeoLens Test Webpage</h1>
-    <p>This Webpage contains four images to showcase the functionality of the
-        GeoLens browser plugin. Two pictures are real photos &mdash; one taken with
-        the GeoCam app and one with the regular camera app on an iPhone &mdash; while
-        the other two are AI-generated images created with Google Gemini, which
-        carry an invisible SynthID watermark.</p>
-</header>
+<!-- ===== Top navigation ===== -->
+<nav class="topbar">
+    <div class="topbar-inner">
+        <div class="brand"><span class="dot"></span>Frame</div>
+        <div class="search" data-i18n="search_ph">Search Frame</div>
+        <div class="nav-actions">
+            <div class="lang-toggle" role="group" aria-label="Language">
+                <button data-lang="en">EN</button>
+                <button data-lang="de">DE</button>
+            </div>
+            <button class="icon-btn" data-i18n-title="nav_home" title="Home">🏠</button>
+            <button class="icon-btn" data-i18n-title="nav_msg" title="Messages">✉️</button>
+            <button class="icon-btn" data-i18n-title="nav_notif" title="Notifications">🔔</button>
+            <div class="me-avatar" data-i18n-title="nav_you" title="You"></div>
+        </div>
+    </div>
+</nav>
 
-<div class="gallery">
-    <!-- First picture -->
-    <figure>
-        <img src="./imagesWebsite/IMG_7548.PNG" alt="GeoCam photo">
-        <figcaption>IMG 1: GeoCam photo of the GEO 1 building.</figcaption>
-    </figure>
+<div class="wrap">
 
-    <!-- Second picture -->
-    <figure>
-        <img src="./imagesWebsite/IMG_7549.JPG" alt="Camera app photo">
-        <figcaption>IMG 2: Photo of the GEO 1 building taken with iPhone camera app.</figcaption>
-    </figure>
+    <!-- ============ MAIN FEED ============ -->
+    <main class="feed">
 
-    <!-- Third picture -->
-    <figure>
-        <img src="./imagesWebsite/Gemini_Generated_Image_7fqppe7fqppe7fqp.png" alt="AI-generated image with SynthID watermark">
-        <figcaption>IMG 3: AI-generated image (Google Gemini) carrying a SynthID watermark.</figcaption>
-    </figure>
+        <!-- Composer -->
+        <div class="composer">
+            <div class="me-avatar"></div>
+            <input type="text" data-i18n-ph="composer_ph" placeholder="Share something with your network…" readonly>
+        </div>
 
-    <!-- Fourth picture -->
-    <figure>
-        <img src="./imagesWebsite/Gemini_Generated_Image_ecyjenecyjenecyj.png" alt="AI-generated image with SynthID watermark">
-        <figcaption>IMG 4: AI-generated image (Google Gemini) carrying a SynthID watermark.</figcaption>
-    </figure>
+        <!-- Post 1: text-only community post -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#0ea5e9,#6366f1)">UM</div>
+                <div class="post-meta">
+                    <span class="post-name" data-i18n="p1_name">Uni Münster · Geography <span class="badge">✔</span></span>
+                    <span class="post-sub" data-i18n="p1_sub"><a href="#">@unimuenster_geo</a> · 3h · 🌍 Public</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p1_text">Summer semester is officially in full swing 🌞 Reminder: field methods sign-up closes Friday, and the GEO1 rooftop terrace is open again for study breaks. Drop your best campus shot below — we'll repost our favourites this week 📸 <span class="tag">#unimuenster</span> <span class="tag">#campuslife</span></div>
+            <div class="post-stats">
+                <span class="react-bubble like">👍</span><span class="react-bubble">❤️</span>
+                <span data-i18n="p1_likes">You and 214 others</span>
+                <span style="margin-left:auto" data-i18n="p1_comments">37 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+        </article>
+
+        <!-- Post 2: REAL — IMG_7549 iPhone photo of GEO1 entrance -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#22c55e,#16a34a)">JK</div>
+                <div class="post-meta">
+                    <span class="post-name">Jonas Keller</span>
+                    <span class="post-sub" data-i18n="p2_sub"><a href="#">@jonas.k</a> · 5h · 📍 Münster, DE</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p2_text">First day back on campus and the GEO1 sign still slaps 💚 Caught it right as the clouds broke — no filter needed. Who's in for fieldwork prep this week? ☔️➡️☀️</div>
+            <div class="post-media">
+                <img src="./imagesWebsite/IMG_7549.JPG" data-i18n-alt="p2_alt" alt="Photo of the GEO 1 building entrance taken with an iPhone camera">
+            </div>
+            <div class="post-stats">
+                <span class="react-bubble">❤️</span><span class="react-bubble like">👍</span>
+                <span data-i18n="p2_likes">Lena and 88 others</span>
+                <span style="margin-left:auto" data-i18n="p2_comments">12 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+            <div class="comments">
+                <div class="comment">
+                    <div class="avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">LM</div>
+                    <div>
+                        <div class="comment-body" data-i18n="p2_c1"><b>Lena Brandt</b><br>That green never gets old 😍 see you Wednesday for the soil sampling run?</div>
+                        <div class="comment-actions" data-i18n="cact_4h"><span>Like</span><span>Reply</span><span>4h</span></div>
+                    </div>
+                </div>
+                <div class="comment">
+                    <div class="avatar" style="background:linear-gradient(135deg,#8b5cf6,#6366f1)">TM</div>
+                    <div>
+                        <div class="comment-body" data-i18n="p2_c2"><b>Tom Mertens</b><br>Classic GEO1 weather — sun for exactly one photo then back to rain 😂</div>
+                        <div class="comment-actions" data-i18n="cact_3h"><span>Like</span><span>Reply</span><span>3h</span></div>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <!-- Post 3: NEUTRAL Unsplash — desk / coffee -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#f97316,#ea580c)">SP</div>
+                <div class="post-meta">
+                    <span class="post-name">Sophie Park</span>
+                    <span class="post-sub" data-i18n="p3_sub"><a href="#">@sophie.builds</a> · 8h</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p3_text">Slow mornings before deadline season hits. One coffee, zero meetings, and a very long to-do list ☕️📓 How's everyone's Monday starting?</div>
+            <div class="post-media">
+                <img src="https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=800&q=80&auto=format&fit=crop" data-i18n-alt="p3_alt" alt="A cup of coffee next to a notebook on a wooden desk" loading="lazy">
+            </div>
+            <div class="post-stats">
+                <span class="react-bubble like">👍</span>
+                <span data-i18n="p3_likes">You and 41 others</span>
+                <span style="margin-left:auto" data-i18n="p3_comments">6 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+        </article>
+
+        <!-- Post 4: AI-GENERATED — Gemini #1 (Golden Gate + Eiffel, sunset) sold as a real trip -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#ec4899,#db2777)">MR</div>
+                <div class="post-meta">
+                    <span class="post-name">Mia Rivera</span>
+                    <span class="post-sub" data-i18n="p4_sub"><a href="#">@globetrotter.mia</a> · 1d · 📍 San Francisco, CA</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p4_text">Okay this view actually broke me 😍 Hiked up to the Marin Headlands for golden hour and got the bridge AND the tower in one frame. California genuinely never misses ✈️🌉 Tap ❤️ if you'd move here tomorrow. <span class="tag">#sanfrancisco</span> <span class="tag">#goldengate</span> <span class="tag">#wanderlust</span></div>
+            <div class="post-media">
+                <img src="./imagesWebsite/Gemini_Generated_Image_7fqppe7fqppe7fqp.png" data-i18n-alt="p4_alt" alt="Sunset view of a bay with a large red suspension bridge and a tall tower in the distance" loading="lazy">
+            </div>
+            <div class="post-stats">
+                <span class="react-bubble">❤️</span><span class="react-bubble like">👍</span>
+                <span data-i18n="p4_likes">3,902 likes</span>
+                <span style="margin-left:auto" data-i18n="p4_comments">211 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+            <div class="comments">
+                <div class="comment">
+                    <div class="avatar" style="background:linear-gradient(135deg,#14b8a6,#0d9488)">AD</div>
+                    <div>
+                        <div class="comment-body" data-i18n="p4_c1"><b>Andre Dube</b><br>Wait the Eiffel Tower is in San Francisco now?? 👀 my geography teacher lied to me</div>
+                        <div class="comment-actions" data-i18n="cact_22h"><span>Like</span><span>Reply</span><span>22h</span></div>
+                    </div>
+                </div>
+                <div class="comment">
+                    <div class="avatar" style="background:linear-gradient(135deg,#ec4899,#db2777)">MR</div>
+                    <div>
+                        <div class="comment-body" data-i18n="p4_c2"><b>Mia Rivera</b><br>@Andre Dube hahaha you'd be surprised what's out here 🤭 best kept secret view in the bay</div>
+                        <div class="comment-actions" data-i18n="cact_21h"><span>Like</span><span>Reply</span><span>21h</span></div>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <!-- Post 5: NEUTRAL Unsplash — mountains -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">HW</div>
+                <div class="post-meta">
+                    <span class="post-name">Henrik Walsh</span>
+                    <span class="post-sub" data-i18n="p5_sub"><a href="#">@henrikoutdoors</a> · 1d · 📍 Tirol, AT</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p5_text">Weekend reset complete. No signal, no notifications, just switchbacks and thin air ⛰️ Already planning the next one.</div>
+            <div class="post-media">
+                <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80&auto=format&fit=crop" data-i18n-alt="p5_alt" alt="A mountain range with a misty valley below at sunrise" loading="lazy">
+            </div>
+            <div class="post-stats">
+                <span class="react-bubble">❤️</span>
+                <span data-i18n="p5_likes">Sophie and 129 others</span>
+                <span style="margin-left:auto" data-i18n="p5_comments">9 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+        </article>
+
+        <!-- Post 6: REAL — IMG_7548 GeoCam photo of GEO1 rooftop -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">LB</div>
+                <div class="post-meta">
+                    <span class="post-name">Lena Brandt</span>
+                    <span class="post-sub" data-i18n="p6_sub"><a href="#">@lena_mapsout</a> · 1d · 📍 Münster, DE</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p6_text">Took the long way to the library just to catch the GEO1 roofline against this sky 🌥️ Three years in this building and it still photographs like a flagship. Back to the thesis grind ☕️ <span class="tag">#geography</span> <span class="tag">#unimuenster</span></div>
+            <div class="post-media">
+                <img src="./imagesWebsite/IMG_7548.PNG" data-i18n-alt="p6_alt" alt="GeoCam photo of the GEO 1 building rooftop against a cloudy sky" loading="lazy">
+            </div>
+            <div class="post-stats">
+                <span class="react-bubble like">👍</span><span class="react-bubble">❤️</span>
+                <span data-i18n="p6_likes">Jonas and 64 others</span>
+                <span style="margin-left:auto" data-i18n="p6_comments">7 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+            <div class="comments">
+                <div class="comment">
+                    <div class="avatar" style="background:linear-gradient(135deg,#22c55e,#16a34a)">JK</div>
+                    <div>
+                        <div class="comment-body" data-i18n="p6_c1"><b>Jonas Keller</b><br>The angle on this is unreal 🔥 what did you shoot it on?</div>
+                        <div class="comment-actions" data-i18n="cact_1d"><span>Like</span><span>Reply</span><span>1d</span></div>
+                    </div>
+                </div>
+                <div class="comment">
+                    <div class="avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">LB</div>
+                    <div>
+                        <div class="comment-body" data-i18n="p6_c2"><b>Lena Brandt</b><br>@Jonas Keller just my phone + good timing on the clouds 🙌</div>
+                        <div class="comment-actions" data-i18n="cact_1d"><span>Like</span><span>Reply</span><span>1d</span></div>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <!-- Post 7: AI-GENERATED — Gemini #2 (Golden Gate + Eiffel, daytime) sold as a real trip -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">DV</div>
+                <div class="post-meta">
+                    <span class="post-name">Daniel Vogt</span>
+                    <span class="post-sub" data-i18n="p7_sub"><a href="#">@travelwithdaniel</a> · 2d · 📍 Bayfront Promenade</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p7_text">Sunday stroll along the bay with the bridge AND the tower in one frame 🥖🌁 Still can't believe places like this are real. Full reel drops tomorrow — guess the city in the comments 👇 <span class="tag">#travel</span> <span class="tag">#views</span></div>
+            <div class="post-media">
+                <img src="./imagesWebsite/Gemini_Generated_Image_ecyjenecyjenecyj.png" data-i18n-alt="p7_alt" alt="Daytime view of a waterfront promenade with a red suspension bridge and a tall iron tower" loading="lazy">
+            </div>
+            <div class="post-stats">
+                <span class="react-bubble">❤️</span><span class="react-bubble like">👍</span>
+                <span data-i18n="p7_likes">1,540 likes</span>
+                <span style="margin-left:auto" data-i18n="p7_comments">98 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+            <div class="comments">
+                <div class="comment">
+                    <div class="avatar" style="background:linear-gradient(135deg,#0ea5e9,#6366f1)">PN</div>
+                    <div>
+                        <div class="comment-body" data-i18n="p7_c1"><b>Priya Nair</b><br>Paris? San Francisco? I'm so confused but I love it 😍 adding to my bucket list anyway</div>
+                        <div class="comment-actions" data-i18n="cact_2d"><span>Like</span><span>Reply</span><span>2d</span></div>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <!-- Post 8: NEUTRAL Unsplash — food -->
+        <article class="post">
+            <div class="post-head">
+                <div class="avatar" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">CT</div>
+                <div class="post-meta">
+                    <span class="post-name">Café Torte</span>
+                    <span class="post-sub" data-i18n="p8_sub"><a href="#">@cafetorte</a> · 2d · 📍 Hafenstraße</span>
+                </div>
+                <span class="more">⋯</span>
+            </div>
+            <div class="post-text" data-i18n="p8_text">New on the menu this week 🍋 lemon-poppyseed loaf + a flat white, the only correct combination. Open till 6 today. See you soon!</div>
+            <div class="post-media">
+                <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80&auto=format&fit=crop" data-i18n-alt="p8_alt" alt="A plate of food on a table at a café" loading="lazy">
+            </div>
+            <div class="post-stats">
+                <span class="react-bubble">❤️</span>
+                <span data-i18n="p8_likes">Henrik and 73 others</span>
+                <span style="margin-left:auto" data-i18n="p8_comments">5 comments</span>
+            </div>
+            <div class="post-actions">
+                <button data-i18n="act_like">👍 Like</button><button data-i18n="act_comment">💬 Comment</button><button data-i18n="act_share">↗ Share</button>
+            </div>
+        </article>
+
+    </main>
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="side">
+        <div class="panel demo-note">
+            <div class="lead" data-i18n="demo_lead">🔎 GeoLens demo feed</div>
+            <p data-i18n="demo_text">This is a mock social feed for testing the <b>GeoLens</b> browser plugin. It mixes
+               <b>real photos</b> (GeoCam &amp; iPhone shots of the GEO1 building) with
+               <b>AI-generated images</b> (Google Gemini, carrying a SynthID watermark) and a few
+               neutral stock images. Use GeoLens to inspect each post and see what it flags.</p>
+        </div>
+
+        <div class="panel">
+            <h3 data-i18n="side_suggested">Suggested for you</h3>
+            <div class="suggest">
+                <div class="avatar" style="background:linear-gradient(135deg,#10b981,#059669)">EM</div>
+                <div><div class="s-name">Elif Maier</div><div class="s-sub" data-i18n="sug1_sub">Followed by Jonas + 3</div></div>
+                <button class="follow" data-i18n="follow">Follow</button>
+            </div>
+            <div class="suggest">
+                <div class="avatar" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">RW</div>
+                <div><div class="s-name">Robin Wolf</div><div class="s-sub" data-i18n="sug2_sub">New to Frame</div></div>
+                <button class="follow" data-i18n="follow">Follow</button>
+            </div>
+            <div class="suggest">
+                <div class="avatar" style="background:linear-gradient(135deg,#a855f7,#7c3aed)">KS</div>
+                <div><div class="s-name">Kira Sommer</div><div class="s-sub" data-i18n="sug3_sub">Followed by Lena</div></div>
+                <button class="follow" data-i18n="follow">Follow</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3 data-i18n="side_trending">Trending tags</h3>
+            <div class="tags-row">
+                <span class="chip">#unimuenster</span>
+                <span class="chip">#goldengate</span>
+                <span class="chip" data-i18n="chip_campus">#campuslife</span>
+                <span class="chip">#wanderlust</span>
+                <span class="chip" data-i18n="chip_field">#fieldwork</span>
+            </div>
+        </div>
+
+        <div class="side-foot" data-i18n="side_foot">
+            About · Help · Privacy · Terms · Cookies<br>
+            Frame © 2026 · GeoLens test environment
+        </div>
+    </aside>
+
 </div>
+
+<script>
+    const I18N = {
+        en: {
+            search_ph: `Search Frame`,
+            nav_home: `Home`, nav_msg: `Messages`, nav_notif: `Notifications`, nav_you: `You`,
+            composer_ph: `Share something with your network…`,
+            act_like: `👍 Like`, act_comment: `💬 Comment`, act_share: `↗ Share`,
+            follow: `Follow`,
+
+            p1_name: `Uni Münster · Geography <span class="badge">✔</span>`,
+            p1_sub: `<a href="#">@unimuenster_geo</a> · 3h · 🌍 Public`,
+            p1_text: `Summer semester is officially in full swing 🌞 Reminder: field methods sign-up closes Friday, and the GEO1 rooftop terrace is open again for study breaks. Drop your best campus shot below — we'll repost our favourites this week 📸 <span class="tag">#unimuenster</span> <span class="tag">#campuslife</span>`,
+            p1_likes: `You and 214 others`, p1_comments: `37 comments`,
+
+            p2_sub: `<a href="#">@jonas.k</a> · 5h · 📍 Münster, DE`,
+            p2_text: `First day back on campus and the GEO1 sign still slaps 💚 Caught it right as the clouds broke — no filter needed. Who's in for fieldwork prep this week? ☔️➡️☀️`,
+            p2_alt: `Photo of the GEO 1 building entrance taken with an iPhone camera`,
+            p2_likes: `Lena and 88 others`, p2_comments: `12 comments`,
+            p2_c1: `<b>Lena Brandt</b><br>That green never gets old 😍 see you Wednesday for the soil sampling run?`,
+            p2_c2: `<b>Tom Mertens</b><br>Classic GEO1 weather — sun for exactly one photo then back to rain 😂`,
+
+            p3_sub: `<a href="#">@sophie.builds</a> · 8h`,
+            p3_text: `Slow mornings before deadline season hits. One coffee, zero meetings, and a very long to-do list ☕️📓 How's everyone's Monday starting?`,
+            p3_alt: `A cup of coffee next to a notebook on a wooden desk`,
+            p3_likes: `You and 41 others`, p3_comments: `6 comments`,
+
+            p4_sub: `<a href="#">@globetrotter.mia</a> · 1d · 📍 San Francisco, CA`,
+            p4_text: `Okay this view actually broke me 😍 Hiked up to the Marin Headlands for golden hour and got the bridge AND the tower in one frame. California genuinely never misses ✈️🌉 Tap ❤️ if you'd move here tomorrow. <span class="tag">#sanfrancisco</span> <span class="tag">#goldengate</span> <span class="tag">#wanderlust</span>`,
+            p4_alt: `Sunset view of a bay with a large red suspension bridge and a tall tower in the distance`,
+            p4_likes: `3,902 likes`, p4_comments: `211 comments`,
+            p4_c1: `<b>Andre Dube</b><br>Wait the Eiffel Tower is in San Francisco now?? 👀 my geography teacher lied to me`,
+            p4_c2: `<b>Mia Rivera</b><br>@Andre Dube hahaha you'd be surprised what's out here 🤭 best kept secret view in the bay`,
+
+            p5_sub: `<a href="#">@henrikoutdoors</a> · 1d · 📍 Tirol, AT`,
+            p5_text: `Weekend reset complete. No signal, no notifications, just switchbacks and thin air ⛰️ Already planning the next one.`,
+            p5_alt: `A mountain range with a misty valley below at sunrise`,
+            p5_likes: `Sophie and 129 others`, p5_comments: `9 comments`,
+
+            p6_sub: `<a href="#">@lena_mapsout</a> · 1d · 📍 Münster, DE`,
+            p6_text: `Took the long way to the library just to catch the GEO1 roofline against this sky 🌥️ Three years in this building and it still photographs like a flagship. Back to the thesis grind ☕️ <span class="tag">#geography</span> <span class="tag">#unimuenster</span>`,
+            p6_alt: `GeoCam photo of the GEO 1 building rooftop against a cloudy sky`,
+            p6_likes: `Jonas and 64 others`, p6_comments: `7 comments`,
+            p6_c1: `<b>Jonas Keller</b><br>The angle on this is unreal 🔥 what did you shoot it on?`,
+            p6_c2: `<b>Lena Brandt</b><br>@Jonas Keller just my phone + good timing on the clouds 🙌`,
+
+            p7_sub: `<a href="#">@travelwithdaniel</a> · 2d · 📍 Bayfront Promenade`,
+            p7_text: `Sunday stroll along the bay with the bridge AND the tower in one frame 🥖🌁 Still can't believe places like this are real. Full reel drops tomorrow — guess the city in the comments 👇 <span class="tag">#travel</span> <span class="tag">#views</span>`,
+            p7_alt: `Daytime view of a waterfront promenade with a red suspension bridge and a tall iron tower`,
+            p7_likes: `1,540 likes`, p7_comments: `98 comments`,
+            p7_c1: `<b>Priya Nair</b><br>Paris? San Francisco? I'm so confused but I love it 😍 adding to my bucket list anyway`,
+
+            p8_sub: `<a href="#">@cafetorte</a> · 2d · 📍 Hafenstraße`,
+            p8_text: `New on the menu this week 🍋 lemon-poppyseed loaf + a flat white, the only correct combination. Open till 6 today. See you soon!`,
+            p8_alt: `A plate of food on a table at a café`,
+            p8_likes: `Henrik and 73 others`, p8_comments: `5 comments`,
+
+            cact_4h: `<span>Like</span><span>Reply</span><span>4h</span>`,
+            cact_3h: `<span>Like</span><span>Reply</span><span>3h</span>`,
+            cact_22h: `<span>Like</span><span>Reply</span><span>22h</span>`,
+            cact_21h: `<span>Like</span><span>Reply</span><span>21h</span>`,
+            cact_1d: `<span>Like</span><span>Reply</span><span>1d</span>`,
+            cact_2d: `<span>Like</span><span>Reply</span><span>2d</span>`,
+
+            demo_lead: `🔎 GeoLens demo feed`,
+            demo_text: `This is a mock social feed for testing the <b>GeoLens</b> browser plugin. It mixes <b>real photos</b> (GeoCam &amp; iPhone shots of the GEO1 building) with <b>AI-generated images</b> (Google Gemini, carrying a SynthID watermark) and a few neutral stock images. Use GeoLens to inspect each post and see what it flags.`,
+            side_suggested: `Suggested for you`,
+            sug1_sub: `Followed by Jonas + 3`, sug2_sub: `New to Frame`, sug3_sub: `Followed by Lena`,
+            side_trending: `Trending tags`,
+            chip_campus: `#campuslife`, chip_field: `#fieldwork`,
+            side_foot: `About · Help · Privacy · Terms · Cookies<br>Frame © 2026 · GeoLens test environment`,
+        },
+        de: {
+            search_ph: `Frame durchsuchen`,
+            nav_home: `Startseite`, nav_msg: `Nachrichten`, nav_notif: `Benachrichtigungen`, nav_you: `Du`,
+            composer_ph: `Teile etwas mit deinem Netzwerk…`,
+            act_like: `👍 Gefällt mir`, act_comment: `💬 Kommentieren`, act_share: `↗ Teilen`,
+            follow: `Folgen`,
+
+            p1_name: `Uni Münster · Geographie <span class="badge">✔</span>`,
+            p1_sub: `<a href="#">@unimuenster_geo</a> · 3 Std. · 🌍 Öffentlich`,
+            p1_text: `Das Sommersemester ist offiziell in vollem Gange 🌞 Erinnerung: Die Anmeldung für die Geländemethoden schließt am Freitag, und die Dachterrasse am GEO1 ist wieder für Lernpausen geöffnet. Postet euren besten Campus-Schnappschuss unten — wir teilen diese Woche unsere Favoriten 📸 <span class="tag">#unimuenster</span> <span class="tag">#campusleben</span>`,
+            p1_likes: `Du und 214 weitere`, p1_comments: `37 Kommentare`,
+
+            p2_sub: `<a href="#">@jonas.k</a> · 5 Std. · 📍 Münster, DE`,
+            p2_text: `Erster Tag zurück auf dem Campus und das GEO1-Schild ist immer noch der Hammer 💚 Genau im richtigen Moment erwischt, als die Wolken aufrissen — ganz ohne Filter. Wer ist diese Woche bei der Vorbereitung für die Geländearbeit dabei? ☔️➡️☀️`,
+            p2_alt: `Foto des Eingangs des GEO-1-Gebäudes, aufgenommen mit einer iPhone-Kamera`,
+            p2_likes: `Lena und 88 weitere`, p2_comments: `12 Kommentare`,
+            p2_c1: `<b>Lena Brandt</b><br>Dieses Grün wird nie alt 😍 sehen wir uns Mittwoch bei der Bodenprobenahme?`,
+            p2_c2: `<b>Tom Mertens</b><br>Typisches GEO1-Wetter — Sonne für genau ein Foto und dann wieder Regen 😂`,
+
+            p3_sub: `<a href="#">@sophie.builds</a> · 8 Std.`,
+            p3_text: `Langsame Morgen, bevor die Deadline-Saison losgeht. Ein Kaffee, null Meetings und eine sehr lange To-do-Liste ☕️📓 Wie startet ihr in den Montag?`,
+            p3_alt: `Eine Tasse Kaffee neben einem Notizbuch auf einem Holzschreibtisch`,
+            p3_likes: `Du und 41 weitere`, p3_comments: `6 Kommentare`,
+
+            p4_sub: `<a href="#">@globetrotter.mia</a> · 1 Tag · 📍 San Francisco, CA`,
+            p4_text: `Okay, dieser Ausblick hat mich umgehauen 😍 Zur goldenen Stunde rauf zu den Marin Headlands gewandert und Brücke UND Turm in einem Bild erwischt. Kalifornien enttäuscht echt nie ✈️🌉 Tippt auf ❤️, wenn ihr morgen herziehen würdet. <span class="tag">#sanfrancisco</span> <span class="tag">#goldengate</span> <span class="tag">#wanderlust</span>`,
+            p4_alt: `Blick bei Sonnenuntergang über eine Bucht mit einer großen roten Hängebrücke und einem hohen Turm in der Ferne`,
+            p4_likes: `3.902 Likes`, p4_comments: `211 Kommentare`,
+            p4_c1: `<b>Andre Dube</b><br>Moment, der Eiffelturm steht jetzt in San Francisco?? 👀 mein Erdkundelehrer hat mich angelogen`,
+            p4_c2: `<b>Mia Rivera</b><br>@Andre Dube hahaha du wärst überrascht, was es hier gibt 🤭 der bestgehütete Geheimtipp der Bucht`,
+
+            p5_sub: `<a href="#">@henrikoutdoors</a> · 1 Tag · 📍 Tirol, AT`,
+            p5_text: `Wochenend-Reset abgeschlossen. Kein Empfang, keine Benachrichtigungen, nur Serpentinen und dünne Luft ⛰️ Plane schon die nächste Tour.`,
+            p5_alt: `Eine Bergkette mit einem nebligen Tal darunter bei Sonnenaufgang`,
+            p5_likes: `Sophie und 129 weitere`, p5_comments: `9 Kommentare`,
+
+            p6_sub: `<a href="#">@lena_mapsout</a> · 1 Tag · 📍 Münster, DE`,
+            p6_text: `Den Umweg zur Bibliothek genommen, nur um die Dachlinie vom GEO1 vor diesem Himmel einzufangen 🌥️ Drei Jahre in diesem Gebäude und es sieht auf Fotos immer noch aus wie ein Vorzeigebau. Zurück zur Abschlussarbeit ☕️ <span class="tag">#geographie</span> <span class="tag">#unimuenster</span>`,
+            p6_alt: `GeoCam-Foto des Dachs des GEO-1-Gebäudes vor einem bewölkten Himmel`,
+            p6_likes: `Jonas und 64 weitere`, p6_comments: `7 Kommentare`,
+            p6_c1: `<b>Jonas Keller</b><br>Der Winkel hier ist der Wahnsinn 🔥 womit hast du das aufgenommen?`,
+            p6_c2: `<b>Lena Brandt</b><br>@Jonas Keller einfach mein Handy + gutes Timing mit den Wolken 🙌`,
+
+            p7_sub: `<a href="#">@travelwithdaniel</a> · 2 Tage · 📍 Bayfront Promenade`,
+            p7_text: `Sonntagsspaziergang an der Bucht mit Brücke UND Turm in einem Bild 🥖🌁 Kann immer noch nicht glauben, dass es solche Orte wirklich gibt. Das ganze Reel kommt morgen — ratet die Stadt in den Kommentaren 👇 <span class="tag">#reisen</span> <span class="tag">#ausblick</span>`,
+            p7_alt: `Tagsüber Blick auf eine Uferpromenade mit einer roten Hängebrücke und einem hohen Eisenturm`,
+            p7_likes: `1.540 Likes`, p7_comments: `98 Kommentare`,
+            p7_c1: `<b>Priya Nair</b><br>Paris? San Francisco? Ich bin so verwirrt, aber ich liebe es 😍 kommt trotzdem auf meine Bucket List`,
+
+            p8_sub: `<a href="#">@cafetorte</a> · 2 Tage · 📍 Hafenstraße`,
+            p8_text: `Neu auf der Karte diese Woche 🍋 Zitronen-Mohn-Kuchen + Flat White, die einzig richtige Kombination. Heute bis 18 Uhr geöffnet. Bis bald!`,
+            p8_alt: `Ein Teller mit Essen auf einem Tisch in einem Café`,
+            p8_likes: `Henrik und 73 weitere`, p8_comments: `5 Kommentare`,
+
+            cact_4h: `<span>Gefällt mir</span><span>Antworten</span><span>4 Std.</span>`,
+            cact_3h: `<span>Gefällt mir</span><span>Antworten</span><span>3 Std.</span>`,
+            cact_22h: `<span>Gefällt mir</span><span>Antworten</span><span>22 Std.</span>`,
+            cact_21h: `<span>Gefällt mir</span><span>Antworten</span><span>21 Std.</span>`,
+            cact_1d: `<span>Gefällt mir</span><span>Antworten</span><span>1 Tag</span>`,
+            cact_2d: `<span>Gefällt mir</span><span>Antworten</span><span>2 Tage</span>`,
+
+            demo_lead: `🔎 GeoLens-Demo-Feed`,
+            demo_text: `Dies ist ein nachgebauter Social-Feed zum Testen des <b>GeoLens</b>-Browser-Plugins. Er mischt <b>echte Fotos</b> (GeoCam- &amp; iPhone-Aufnahmen des GEO1-Gebäudes) mit <b>KI-generierten Bildern</b> (Google Gemini, mit SynthID-Wasserzeichen) und einigen neutralen Stockfotos. Nutze GeoLens, um jeden Beitrag zu prüfen und zu sehen, was markiert wird.`,
+            side_suggested: `Vorschläge für dich`,
+            sug1_sub: `Gefolgt von Jonas + 3`, sug2_sub: `Neu bei Frame`, sug3_sub: `Gefolgt von Lena`,
+            side_trending: `Angesagte Tags`,
+            chip_campus: `#campusleben`, chip_field: `#feldforschung`,
+            side_foot: `Über uns · Hilfe · Datenschutz · AGB · Cookies<br>Frame © 2026 · GeoLens-Testumgebung`,
+        }
+    };
+
+    function setLang(lang) {
+        const dict = I18N[lang] || I18N.en;
+        document.documentElement.lang = lang;
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const v = dict[el.dataset.i18n]; if (v !== undefined) el.innerHTML = v;
+        });
+        document.querySelectorAll('[data-i18n-alt]').forEach(el => {
+            const v = dict[el.dataset.i18nAlt]; if (v !== undefined) el.alt = v;
+        });
+        document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+            const v = dict[el.dataset.i18nPh]; if (v !== undefined) el.placeholder = v;
+        });
+        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+            const v = dict[el.dataset.i18nTitle]; if (v !== undefined) el.title = v;
+        });
+        document.querySelectorAll('.lang-toggle button').forEach(b =>
+            b.classList.toggle('active', b.dataset.lang === lang));
+        try { localStorage.setItem('frame_lang', lang); } catch (e) {}
+    }
+
+    let saved = null;
+    try { saved = localStorage.getItem('frame_lang'); } catch (e) {}
+    const initial = saved || ((navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en');
+    document.querySelectorAll('.lang-toggle button').forEach(b =>
+        b.addEventListener('click', () => setLang(b.dataset.lang)));
+    setLang(initial);
+</script>
 
 </body>
 </html>

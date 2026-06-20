@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import maplibregl from 'maplibre-gl';
-import { ArrowLeft, ExternalLink, Loader2, MapPin, Maximize2 } from 'lucide-react';
+import { ExternalLink, Loader2, Map as MapIcon, Mountain, Satellite } from 'lucide-react';
 import {
   findClosestPanoramaxPicture,
   panoramaxViewerUrl,
@@ -8,8 +8,8 @@ import {
 } from '../../lib/panoramax';
 import { cn } from './cn';
 
-/** OpenStreetMap raster tiles for the 2D map card. */
-const OSM_MAP_STYLE: maplibregl.StyleSpecification = {
+/** OpenStreetMap raster tiles for the 2D street map. */
+const STREET_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
     osm: {
@@ -22,81 +22,100 @@ const OSM_MAP_STYLE: maplibregl.StyleSpecification = {
   layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
 };
 
-type MapViewMode = 'map' | 'streetview';
+/** Esri World Imagery raster tiles for the satellite view. */
+const SATELLITE_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    esri: {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      attribution: 'Imagery © Esri',
+    },
+  },
+  layers: [{ id: 'esri', type: 'raster', source: 'esri' }],
+};
 
+type Coords = { lat: number; lng: number };
+type MapMode = 'street' | 'satellite' | 'panoramic';
+
+const PIN_GREEN = '#0E7C5A';
+const PIN_ORANGE = '#EA7317';
+
+// The map card. `verified` is GeoLens's signed coordinate (a green pin); `general`
+// is a secondary, self-reported coordinate such as EXIF GPS (an orange pin). When
+// neither is present the map still renders (a world view) with no pins. A
+// panoramic (360°) view is offered only when Panoramax has imagery nearby.
 export function MapPanel({
-  lat,
-  lng,
-  source,
+  verified,
+  general,
 }: {
-  lat?: number;
-  lng?: number;
-  source?: string;
+  verified?: Coords;
+  general?: Coords;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
 
-  const [viewMode, setViewMode] = useState<MapViewMode>('map');
+  const primary = verified ?? general;
+  const hasCoords = !!primary;
+
+  const [mode, setMode] = useState<MapMode>('street');
   const [mapError, setMapError] = useState<string | null>(null);
-  const [panoramaxLoading, setPanoramaxLoading] = useState(false);
-  const [panoramaxError, setPanoramaxError] = useState<string | null>(null);
-  const [panoramaxPicture, setPanoramaxPicture] = useState<PanoramaxPicture | null>(null);
-  const [activeStreetPicture, setActiveStreetPicture] = useState<PanoramaxPicture | null>(null);
+  const [panoLoading, setPanoLoading] = useState(false);
+  const [panoError, setPanoError] = useState<string | null>(null);
+  const [pano, setPano] = useState<PanoramaxPicture | null>(null);
 
+  // Look for nearby street-level imagery whenever the primary coordinate moves.
   useEffect(() => {
-    setViewMode('map');
-    setMapError(null);
-    setPanoramaxPicture(null);
-    setActiveStreetPicture(null);
-    setPanoramaxError(null);
-  }, [lat, lng]);
-
-  useEffect(() => {
-    if (lat == null || lng == null) return;
+    setMode('street');
+    setPano(null);
+    setPanoError(null);
+    if (!primary) return;
 
     let cancelled = false;
-    setPanoramaxLoading(true);
-    setPanoramaxError(null);
-
-    findClosestPanoramaxPicture(lat, lng)
+    setPanoLoading(true);
+    findClosestPanoramaxPicture(primary.lat, primary.lng)
       .then((picture) => {
         if (cancelled) return;
-        setPanoramaxPicture(picture);
-        setActiveStreetPicture(picture);
-        if (!picture) {
-          setPanoramaxError('No Panoramax street-level imagery near this location.');
-        }
+        setPano(picture);
+        if (!picture) setPanoError('No panoramic imagery near this location.');
       })
       .catch(() => {
-        if (cancelled) return;
-        setPanoramaxError('Could not reach the Panoramax catalog.');
+        if (!cancelled) setPanoError('Could not reach the panoramic catalog.');
       })
       .finally(() => {
-        if (!cancelled) setPanoramaxLoading(false);
+        if (!cancelled) setPanoLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [lat, lng]);
+  }, [primary?.lat, primary?.lng]);
 
+  // (Re)build the raster map for the street/satellite modes.
   useEffect(() => {
-    if (viewMode !== 'map' || !containerRef.current || lat == null || lng == null) return;
+    if (mode === 'panoramic' || !containerRef.current) return;
 
     setMapError(null);
     let map: maplibregl.Map | null = null;
-
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: OSM_MAP_STYLE,
-        center: [lng, lat],
-        zoom: 15,
+        style: mode === 'satellite' ? SATELLITE_STYLE : STREET_STYLE,
+        center: primary ? [primary.lng, primary.lat] : [0, 20],
+        zoom: primary ? 15 : 1,
       });
       map.addControl(new maplibregl.NavigationControl(), 'top-right');
-      new maplibregl.Marker({ color: '#2563eb' }).setLngLat([lng, lat]).addTo(map);
+
+      if (verified) {
+        new maplibregl.Marker({ color: PIN_GREEN }).setLngLat([verified.lng, verified.lat]).addTo(map);
+      }
+      if (general && (general.lat !== verified?.lat || general.lng !== verified?.lng)) {
+        new maplibregl.Marker({ color: PIN_ORANGE }).setLngLat([general.lng, general.lat]).addTo(map);
+      }
+
       map.once('load', () => map?.resize());
-      mapRef.current = map;
     } catch (err) {
       setMapError(err instanceof Error ? err.message : 'Could not initialize the map.');
     }
@@ -107,168 +126,135 @@ export function MapPanel({
       } catch {
         // Map may already be detached when the panel closes quickly.
       }
-      mapRef.current = null;
     };
-  }, [viewMode, lat, lng]);
+  }, [mode, verified?.lat, verified?.lng, general?.lat, general?.lng]);
 
-  const openStreetView = useCallback(() => {
-    if (!panoramaxPicture) return;
-    setActiveStreetPicture(panoramaxPicture);
-    setViewMode('streetview');
-  }, [panoramaxPicture]);
-
-  if (lat == null || lng == null) {
-    return (
-      <div className="text-center py-12">
-        <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-        <p className="text-gray-600">No GPS coordinates available</p>
-      </div>
-    );
-  }
-
-  const cardHeight = 350;
-  const miniHeight = Math.round(cardHeight * 0.2);
-  const miniWidth = Math.round(miniHeight * 1.45);
-
-  const displayLat = viewMode === 'streetview' && activeStreetPicture ? activeStreetPicture.lat : lat;
-  const displayLng = viewMode === 'streetview' && activeStreetPicture ? activeStreetPicture.lng : lng;
+  const cardHeight = 320;
 
   return (
-    <div>
-      <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-gray-900">
-        <MapPin className="w-5 h-5" />
-        Location
-      </h3>
+    <div className="space-y-2">
+      {/* View-mode toggles */}
+      <div className="flex gap-1.5">
+        <ModeButton active={mode === 'street'} onClick={() => setMode('street')} icon={MapIcon} label="Street" />
+        <ModeButton active={mode === 'satellite'} onClick={() => setMode('satellite')} icon={Satellite} label="Satellite" />
+        <ModeButton
+          active={mode === 'panoramic'}
+          onClick={() => pano && setMode('panoramic')}
+          icon={Mountain}
+          label="Panoramic"
+          disabled={!pano}
+          loading={panoLoading}
+        />
+      </div>
 
       <div
-        className="relative bg-white rounded-lg overflow-hidden shadow-md mb-4"
+        className="relative overflow-hidden rounded-xl bg-gray-100 shadow-inner"
         style={{ height: cardHeight }}
       >
-        {/* State 1 — 2D map + mini street-view trigger (thumbnail only; no heavy viewer yet) */}
-        <div
-          className={cn(
-            'absolute inset-0 transition-all duration-300 ease-out',
-            viewMode === 'map'
-              ? 'opacity-100 scale-100 pointer-events-auto'
-              : 'opacity-0 scale-95 pointer-events-none',
-          )}
-        >
-          <div ref={containerRef} className="w-full h-full" />
-
+        {/* Raster map (street / satellite) */}
+        <div className={cn('absolute inset-0', mode === 'panoramic' && 'pointer-events-none opacity-0')}>
+          <div ref={containerRef} className="h-full w-full" />
           {mapError && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-50/95 px-4 text-center text-sm text-gray-600">
               {mapError}
             </div>
           )}
-
-          {panoramaxLoading && (
-            <div className="absolute bottom-3 right-3 flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 text-xs text-gray-600 shadow-md">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Loading street view…
+          {!hasCoords && !mapError && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 mx-auto w-max rounded-lg bg-white/90 px-3 py-1.5 text-xs text-gray-600 shadow">
+              No geolocation data available
             </div>
           )}
-
-          {!panoramaxLoading && panoramaxPicture && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openStreetView();
-              }}
-              className="absolute bottom-3 right-3 group overflow-hidden rounded-lg border-2 border-white shadow-lg ring-2 ring-blue-500/40 transition-transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-400/50"
-              style={{ width: miniWidth, height: miniHeight }}
-              title="Open 360° street view"
-              aria-label="Open Panoramax street view"
-            >
-              {panoramaxPicture.thumbnailUrl ? (
-                <img
-                  src={panoramaxPicture.thumbnailUrl}
-                  alt="Nearby Panoramax street view"
-                  className="h-full w-full object-cover"
-                  draggable={false}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] text-gray-600">
-                  Street view
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
-              <div className="absolute bottom-1 right-1 rounded bg-black/60 p-0.5 text-white">
-                <Maximize2 className="w-3 h-3" />
-              </div>
-            </button>
-          )}
         </div>
 
-        {/* State 2 — full Panoramax viewer (hosted iframe; isolated from extension React tree) */}
-        <div
-          className={cn(
-            'absolute inset-0 transition-all duration-300 ease-out',
-            viewMode === 'streetview'
-              ? 'opacity-100 scale-100 pointer-events-auto'
-              : 'opacity-0 scale-105 pointer-events-none',
-          )}
-        >
-          {panoramaxPicture && viewMode === 'streetview' && (
-            <>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setViewMode('map');
-                  setActiveStreetPicture(panoramaxPicture);
-                }}
-                className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 rounded-lg bg-black/70 px-3 py-1.5 text-xs font-semibold text-white shadow-md backdrop-blur-sm transition-colors hover:bg-black/85"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                Back to Map
-              </button>
-              <iframe
-                title="Panoramax street view"
-                src={panoramaxViewerUrl(panoramaxPicture)}
-                className="h-full w-full border-0"
-                allow="fullscreen"
-                referrerPolicy="no-referrer"
-              />
-            </>
-          )}
-        </div>
+        {/* Panoramic 360° viewer (hosted iframe) */}
+        {mode === 'panoramic' && pano && (
+          <iframe
+            title="Panoramic street view"
+            src={panoramaxViewerUrl(pano)}
+            className="h-full w-full border-0"
+            allow="fullscreen"
+            referrerPolicy="no-referrer"
+          />
+        )}
       </div>
 
-      <div className="text-sm space-y-1">
-        <p className="text-gray-700">
-          {viewMode === 'streetview' ? (
-            <>
-              <span className="text-gray-600">Verified Street View:</span>{' '}
-              <span className="font-mono">
-                {displayLat.toFixed(6)}, {displayLng.toFixed(6)}
-              </span>
-              <span className="text-gray-500"> (Panoramax)</span>
-            </>
-          ) : (
-            <>
-              <span className="text-gray-600">Coordinates:</span>{' '}
-              <span className="font-mono">
-                {displayLat.toFixed(6)}, {displayLng.toFixed(6)}
-              </span>
-              {source && <span className="text-gray-500"> (from {source})</span>}
-            </>
-          )}
-        </p>
-
-        {viewMode === 'map' && panoramaxError && !panoramaxLoading && (
-          <p className="text-xs text-gray-500">{panoramaxError}</p>
+      {/* Caption */}
+      <div className="text-sm">
+        {hasCoords ? (
+          <>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-gray-700">
+              {verified && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PIN_GREEN }} />
+                  <span className="font-mono text-xs">
+                    {verified.lat.toFixed(5)}, {verified.lng.toFixed(5)}
+                  </span>
+                  <span className="text-xs text-gray-500">verified</span>
+                </span>
+              )}
+              {general && (general.lat !== verified?.lat || general.lng !== verified?.lng) && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PIN_ORANGE }} />
+                  <span className="font-mono text-xs">
+                    {general.lat.toFixed(5)}, {general.lng.toFixed(5)}
+                  </span>
+                  <span className="text-xs text-gray-500">general</span>
+                </span>
+              )}
+            </p>
+            {mode !== 'panoramic' && panoError && !panoLoading && (
+              <p className="mt-0.5 text-xs text-gray-400">{panoError}</p>
+            )}
+            <a
+              href={`https://www.openstreetmap.org/?mlat=${primary!.lat}&mlon=${primary!.lng}#map=15/${primary!.lat}/${primary!.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+            >
+              Open in OpenStreetMap <ExternalLink className="h-3 w-3" />
+            </a>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">
+            This image carries no location data, so there's no pin to show.
+          </p>
         )}
-
-        <a
-          href={`https://www.openstreetmap.org/?mlat=${displayLat}&mlon=${displayLng}#map=15/${displayLat}/${displayLng}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:underline inline-flex items-center gap-1"
-        >
-          Open in OpenStreetMap <ExternalLink className="w-3.5 h-3.5" />
-        </a>
       </div>
     </div>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+  disabled,
+  loading,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors',
+        active
+          ? 'bg-gray-900 text-white'
+          : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+        disabled && 'cursor-not-allowed opacity-40 hover:bg-gray-100',
+      )}
+      title={disabled ? `${label} view unavailable here` : `${label} view`}
+    >
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
+      {label}
+    </button>
   );
 }
