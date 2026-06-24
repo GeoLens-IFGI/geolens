@@ -1,0 +1,74 @@
+services:
+  c2pa-backend:
+    build:
+      context: ./c2pa-backend
+      dockerfile: Dockerfile
+      network: host
+    image: geolens/c2pa-backend:0.1.0
+    container_name: geolens-c2pa-backend
+    restart: unless-stopped
+    networks:
+      - geolens
+    ports:
+      - "8001:8001"
+    environment:
+      C2PA_TRUST_PROFILE: ${C2PA_TRUST_PROFILE:-c2pa-prod+itl}
+      C2PA_TRUST_DIR: /app/trust
+      C2PA_HOST: 0.0.0.0
+      C2PA_PORT: "8001"
+      C2PA_OCSP_LIVE: "false"
+      C2PA_CORS_ORIGINS: "*"
+      C2PA_LOG_LEVEL: INFO
+    volumes:
+      - ./c2pa-backend/trust:/app/trust:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  synthid-backend:
+    build:
+      context: ./synthid-backend
+      network: host
+    image: geolens-synthid
+    container_name: geolens-synthid
+    restart: unless-stopped
+    networks:
+      - geolens
+    ports:
+      - "8008:8008"
+    environment:
+      PORT: 8008
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8008/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  geocam-backend:
+    build:
+      context: ./geocam-backend
+      network: host
+    image: geocam-backend
+    container_name: geocam-backend
+    restart: unless-stopped
+    networks:
+      - geolens
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      PERSIST_DIR: /var/data
+    volumes:
+      - ./geocam-backend/public_keys.json:/var/data/data/public_keys/public_keys.json:ro
+
+networks:
+  geolens:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:d0c::/64

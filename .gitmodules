@@ -1,0 +1,3 @@
+[submodule "geocam-backend"]
+	path = geocam-backend
+	url = git@github.com:GeoLens-IFGI/GeoCam-Backend.git
