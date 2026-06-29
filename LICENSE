@@ -1,0 +1,8 @@
+This repository contains multiple components under different licenses.
+
+- extension/        Apache License 2.0  (see extension/LICENSE)
+- c2pa-backend/     Apache License 2.0  (see c2pa-backend/LICENSE)
+- synthid-backend/  Research License v1.0 (see synthid-backend/LICENSE)
+                    NOTE: Non-commercial use only; see file for full terms.
+
+For each component, the LICENSE file in that subfolder is authoritative.

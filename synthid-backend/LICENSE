@@ -1,0 +1,77 @@
+This code is derived from reverse-SynthID:
+  Original repository: https://github.com/aloshdenny/reverse-SynthID
+  Original author: Alosh Denny
+  Original copyright: 2024 Alosh Denny
+
+Modifications copyright 2025 The GeoLens Authors.
+
+This code is distributed under the same license as the original
+(Research License v1.0), reproduced below.
+
+================================================================
+reverse-SynthID Research License v1.0
+Copyright (c) 2024 Alosh Denny (github.com/aloshdenny)
+
+DEFINITIONS
+
+"Software" means the reverse-SynthID source code, documentation, and
+associated files in this repository.
+
+"Non-Commercial Use" means use for personal, academic, research, or
+educational purposes where no revenue, compensation, or commercial
+advantage is derived.
+
+"Commercial Use" means any use of the Software, in whole or in part,
+to provide a product, service, or feature that generates revenue —
+including SaaS platforms, APIs, paid tools, consulting engagements,
+or any other monetized deployment.
+
+GRANT OF RIGHTS
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this Software to use, copy, modify, and distribute it solely
+for Non-Commercial Use, subject to the conditions below.
+
+CONDITIONS
+
+1. ATTRIBUTION (required for all uses)
+   All copies, derivatives, publications, blog posts, or public
+   deployments using this Software must prominently credit:
+     "reverse-SynthID by Alosh Denny — github.com/aloshdenny/reverse-SynthID"
+   This credit must appear in documentation, product pages, or any
+   public-facing material describing the feature or methodology.
+
+2. ACADEMIC CITATION (required for research use)
+   Any academic paper, thesis, or presentation using this Software
+   must cite this repository and its author in the references section.
+
+3. COMMERCIAL USE RESTRICTION
+   Commercial Use of this Software is strictly prohibited without a
+   separate written Commercial License Agreement signed by the author.
+   To obtain a commercial license, contact: aloshdenny@gmail.com
+
+4. REVENUE SHARE (applies to Commercial Licensees)
+   Commercial License Agreements shall include a revenue share
+   provision of no less than 7.5% of gross revenue directly attributable
+   to features or services powered by this Software, payable quarterly,
+   unless otherwise negotiated in writing.
+
+5. NO SUBLICENSING
+   You may not sublicense, sell, or transfer commercial rights to any
+   third party without explicit written consent from the author.
+
+6. COPYLEFT ON DERIVATIVES
+   Any derivative work or improvement to the core detection methodology
+   must be shared back under this same license (or a compatible one
+   approved by the author) if distributed publicly.
+
+DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+THE AUTHOR SHALL NOT BE LIABLE FOR ANY DAMAGES ARISING FROM USE
+OF THIS SOFTWARE.
+
+SynthID is proprietary technology owned by Google DeepMind. This
+project does not claim ownership of SynthID or its underlying
+technology. The methods herein are derived from independent analysis.
+================================================================

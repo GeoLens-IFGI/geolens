@@ -140,13 +140,57 @@ Toggle between stub and real validation while debugging — useful when the serv
 - **Caching**: If the same image is validated repeatedly, results could be cached to improve performance.
 - **Configurability**: The service URL is hardcoded. Eventually it should be a setting in the extension's options page.
 
-### Future Improvements
+## Future Improvements
 
 - Full automatic social media image scanning
 - Improved SynthID detection model updates
 - Cloud deployment of backend service
 - Caching system for repeated image analysis
 
-### Privacy
+## Privacy
 
 GeoLens is designed with a privacy-first approach. Images are temporarily transmitted to the backend for analysis and are not permanently stored or logged. Once processing is complete, all image data is discarded.
+
+## Licensing
+
+This repository contains multiple components, each licensed under different
+terms because they have different origins and dependencies. **The license that
+applies to a given file is determined by the LICENSE file in that file's
+containing component directory.**
+
+| Component | License | Commercial use |
+|---|---|---|
+| `extension/` | Apache License 2.0 | ✅ Permitted |
+| `c2pa-backend/` | Apache License 2.0 | ✅ Permitted |
+| `synthid-backend/` | Research License v1.0 | ❌ Not permitted |
+
+### Why per-component licensing?
+
+The `synthid-backend/` component is derived from reverse-SynthID
+by Alosh Denny (https://github.com/aloshdenny/reverse-SynthID), which uses
+a custom Research License with restrictions including **no commercial use** and
+**copyleft on derivatives**. We are required to preserve those terms in our
+derivative.
+
+The `extension/` and `c2pa-backend/` components were developed by the GeoLens team and
+do not derive from restrictively-licensed code. We have chosen the Apache
+License 2.0 for these components to maximize adoption and compatibility.
+
+### What this means for users
+
+- **Using only the extension and/or the C2PA backend**: fully permitted for any
+  use, including commercial. See the respective `LICENSE` files for the full
+  Apache 2.0 terms.
+- **Using the SynthID backend**: permitted for research and non-commercial use
+  only, with attribution and copyleft requirements. See
+  `synthid-backend/LICENSE` for the full Research License v1.0 terms.
+- **The extension communicates with backends over HTTP**, treating them as
+  external services. Using the extension does not automatically obligate you
+  to comply with the SynthID backend's license — only running or modifying the
+  SynthID backend itself does.
+
+### For contributors
+
+Contributions to each component are accepted under that component's license.
+By submitting a pull request, you agree that your contributions to a given
+component will be licensed under that component's existing license.
