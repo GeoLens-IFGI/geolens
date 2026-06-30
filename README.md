@@ -126,9 +126,27 @@ Toggle between stub and real validation while debugging — useful when the serv
 - Confirm the checkmark appears for images the service deems valid, and does _not_ appear for invalid ones.
 - Check both consoles (page and service worker) for any errors.
 
+### Limitations
+
+- Some websites block image access due to CORS/CSP restrictions
+- SynthID detection is based on reverse-engineered methods and is not official
+- AI detection results are probabilistic, not definitive
+- Performance depends on backend availability and network speed
+
 ### Considerations once basic integration works
 
-- **Error handling**: What should happen if the service is unreachable? Show an error overlay? Silent fail? Currently the code falls back to "do nothing."
-- **Loading state**: Image validation may take longer than the 500ms stub. A spinner or "validating..." indicator would help.
-- **Caching**: If the same image is validated repeatedly, can we cache the result?
+- **Error handling**: What should happen if the service is unreachable? Show an error overlay or fail silently? Currently the code falls back to "do nothing."
+- **Loading state**: Image validation may take longer than the 500ms stub. A spinner or "validating..." indicator would improve user feedback.
+- **Caching**: If the same image is validated repeatedly, results could be cached to improve performance.
 - **Configurability**: The service URL is hardcoded. Eventually it should be a setting in the extension's options page.
+
+### Future Improvements
+
+- Full automatic social media image scanning
+- Improved SynthID detection model updates
+- Cloud deployment of backend service
+- Caching system for repeated image analysis
+
+### Privacy
+
+GeoLens is designed with a privacy-first approach. Images are temporarily transmitted to the backend for analysis and are not permanently stored or logged. Once processing is complete, all image data is discarded.
