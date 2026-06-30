@@ -1,0 +1,109 @@
+name: Build containers
+
+# The deployment VM has no usable outbound route for in-container package
+# managers (apt/pip/npm/git all fail behind its NAT64-only network), so images
+# can't be built there without per-container proxy hacks. Instead we build them
+# here, where the runner has full internet, and push to GHCR. The VM then only
+# needs to `docker compose pull` (see docker-compose.prod.yml).
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-containers-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  # GHCR namespaces are lowercase; the org is GeoLens-IFGI.
+  IMAGE_NAMESPACE: ghcr.io/geolens-ifgi
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: c2pa-backend
+            context: ./c2pa-backend
+          - name: synthid-backend
+            context: ./synthid-backend
+          - name: geocam-backend
+            context: ./geocam-backend
+            # geocam's Dockerfile bakes the qrdet YOLO weights from vendor/ so
+            # the offline VM never fetches them at runtime. Those files aren't
+            # committed, so CI must produce them before the build.
+            fetch_qrdet: true
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          # geocam-backend is a git submodule.
+          submodules: recursive
+
+      - name: Bake qrdet weights into the build context
+        if: matrix.fetch_qrdet
+        run: |
+          # CI has internet; the VM does not. Let qrdet download its own weights
+          # so the bundled current_release.txt matches the version qrdet expects
+          # (a mismatch would make the runtime re-download, which fails offline).
+          python3 -m pip install --quiet --upgrade pip
+          python3 -m pip install --quiet qrdet
+          python3 - <<'PY'
+          from qrdet import QRDetector
+          QRDetector(model_size='s')  # triggers the weights download
+          PY
+          MODEL_DIR="$(python3 -c 'import os, qrdet; print(os.path.join(os.path.dirname(qrdet.__file__), ".model"))')"
+          DEST="${{ matrix.context }}/vendor/qrdet"
+          mkdir -p "$DEST"
+          cp "$MODEL_DIR/qrdet-s.pt" "$MODEL_DIR/current_release.txt" "$DEST/"
+          ls -l "$DEST"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        # Skip the push login on PRs from forks where no secret is available;
+        # PR builds still run (build only, no push) to catch breakage early.
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,format=long
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          # The VM is amd64; building a single platform keeps CI fast. Add
+          # linux/arm64 here if you ever pull onto Apple-silicon / arm hosts.
+          platforms: linux/amd64
+          # Build on PRs to catch breakage; only push on branch/tag/dispatch.
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

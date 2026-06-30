@@ -1,0 +1,77 @@
+# Production compose for the offline VM.
+#
+# Unlike docker-compose.yml, this never builds: it pulls the images that the
+# "Build containers" GitHub Actions workflow pushed to GHCR. The VM only needs
+# to reach ghcr.io (works over its NAT64 route) — no in-container apt/pip/npm.
+#
+#   echo "$GHCR_PAT" | docker login ghcr.io -u <user> --password-stdin   # once
+#   GEOLENS_TAG=latest docker compose -f docker-compose.prod.yml pull
+#   GEOLENS_TAG=latest docker compose -f docker-compose.prod.yml up -d
+#
+# Pin GEOLENS_TAG to a release tag (e.g. v0.1.0) or a long commit SHA for
+# reproducible deploys; defaults to the latest main build.
+
+services:
+  c2pa-backend:
+    image: ghcr.io/geolens-ifgi/c2pa-backend:${GEOLENS_TAG:-latest}
+    container_name: geolens-c2pa-backend
+    restart: unless-stopped
+    networks:
+      - geolens
+    ports:
+      - "8001:8001"
+    environment:
+      C2PA_TRUST_PROFILE: ${C2PA_TRUST_PROFILE:-c2pa-prod+itl}
+      C2PA_TRUST_DIR: /app/trust
+      C2PA_HOST: 0.0.0.0
+      C2PA_PORT: "8001"
+      C2PA_OCSP_LIVE: "false"
+      C2PA_CORS_ORIGINS: "*"
+      C2PA_LOG_LEVEL: INFO
+    volumes:
+      - ./c2pa-backend/trust:/app/trust:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  synthid-backend:
+    image: ghcr.io/geolens-ifgi/synthid-backend:${GEOLENS_TAG:-latest}
+    container_name: geolens-synthid
+    restart: unless-stopped
+    networks:
+      - geolens
+    ports:
+      - "8008:8008"
+    environment:
+      PORT: 8008
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8008/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  geocam-backend:
+    image: ghcr.io/geolens-ifgi/geocam-backend:${GEOLENS_TAG:-latest}
+    container_name: geocam-backend
+    restart: unless-stopped
+    networks:
+      - geolens
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    environment:
+      PERSIST_DIR: /var/data
+    volumes:
+      - ./geocam-backend/public_keys.json:/var/data/data/public_keys/public_keys.json:ro
+
+networks:
+  geolens:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:d0c::/64
