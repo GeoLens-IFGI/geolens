@@ -7,7 +7,7 @@
 import type { Validator, ValidationResult } from '../../core/validator-interface';
 import { registry } from '../../core/registry';
 
-const C2PA_ENDPOINT = 'http://localhost:8001/c2pa/verify';
+const C2PA_ENDPOINT = 'http://10.6.240.217:8001/c2pa/verify';
 
 class C2paAdapter implements Validator {
     readonly name = 'c2pa';

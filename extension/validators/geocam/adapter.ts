@@ -7,7 +7,7 @@
 import type { Validator, ValidationResult } from '../../core/validator-interface';
 import { registry } from '../../core/registry';
 
-const GEOCAM_ENDPOINT = 'http://localhost:8000/verify-image/';
+const GEOCAM_ENDPOINT = 'http://10.6.240.217:8000/verify-image/';
 
 class GeoCamAdapter implements Validator {
     readonly name = 'geocam';

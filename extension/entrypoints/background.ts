@@ -296,7 +296,7 @@ async function runSynthIDCheck(tabId: number, imageUrl: string) {
     const formData = new FormData();
     formData.append('file', blob, 'image.png');
 
-    const apiRes = await fetch('http://localhost:8008/verify-image/', {
+    const apiRes = await fetch('http://10.6.240.217:8008/verify-image/', {
       method: 'POST',
       body: formData,
     });
