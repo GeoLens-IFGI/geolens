@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     ocsp_live: bool = False
     max_ingredient_depth: int = 10
-    max_upload_bytes: int = 10 * 1024 * 1024
+    max_upload_bytes: int = 32 * 1024 * 1024
     cors_origins: str = "*"
 
     log_level: str = Field(default="INFO")

@@ -298,7 +298,9 @@ function buildAI(inspection: Inspection): TopicCard {
   const noData: string[] = [];
   const sid = inspection.synthid;
   const c2pa = inspection.c2pa;
-  const loading = sid.status === 'loading' || c2pa.status === 'loading';
+  const geo = inspection.geocam;
+  const geoProven = geo.status === 'verified';
+  const loading = sid.status === 'loading' || c2pa.status === 'loading' || geo.status === 'loading';
 
   if (sid.status === 'not-verified') {
     findings.push({
@@ -372,6 +374,20 @@ function buildAI(inspection: Inspection): TopicCard {
     noData.push('Content Credentials — no tamper-proof seal on this image');
   }
 
+  // A GeoLens capture proof attests a real camera at a real place — the one
+  // signal that can positively say "not AI".
+  if (geoProven) {
+    findings.push({
+      label: 'Proven camera capture',
+      verifier: 'GeoLens',
+      light: 'green',
+      message: geo.message,
+      explainer:
+        'GeoLens cryptographically proves this photo was taken by a real camera at a real place, so it was not created by AI.',
+      detail: geo.detail,
+    });
+  }
+
   const card = finalize({
     id: 'ai',
     title: 'Real or AI-Generated?',
@@ -381,16 +397,18 @@ function buildAI(inspection: Inspection): TopicCard {
     loading,
   });
 
-  // Headline badge summarising the verdict for this card. We can only be certain
-  // when AI is detected; absence of a signal never proves an image is real, so a
-  // clean result reads "Maybe AI generated".
+  // Headline badge summarising the verdict for this card. Only a GeoLens capture
+  // proof can say "real"; otherwise absence of a signal never proves an image is
+  // real, so a clean result reads "Maybe AI generated".
   card.badge = loading
     ? { text: 'Checking…', light: 'gray' }
     : card.light === 'red'
       ? { text: 'Definitely AI generated', light: 'red' }
-      : card.light === 'gray'
-        ? { text: 'Not checked', light: 'gray' }
-        : { text: 'Maybe AI generated', light: 'orange' };
+      : geoProven
+        ? { text: 'Real photo', light: 'green' }
+        : card.light === 'gray'
+          ? { text: 'Not checked', light: 'gray' }
+          : { text: 'Maybe AI generated', light: 'orange' };
 
   // The box title itself reflects the verdict (keeps the base question while
   // loading or when nothing was checked).
@@ -399,7 +417,9 @@ function buildAI(inspection: Inspection): TopicCard {
       ? 'Real or AI-Generated?'
       : card.light === 'red'
         ? 'Definitely AI generated'
-        : 'Maybe AI generated';
+        : geoProven
+          ? 'Real photo'
+          : 'Maybe AI generated';
 
   return card;
 }
